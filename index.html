@@ -216,7 +216,7 @@
 
     .right-col {
       display: grid;
-      grid-template-rows: auto auto auto auto auto auto;
+      grid-template-rows: auto auto auto auto auto;
       gap: 12px;
       min-height: 0;
       align-content: start;
@@ -314,9 +314,9 @@
       align-items: center;
     }
 
-    .stats-grid {
+    .stats-row {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
       align-items: stretch;
     }
@@ -334,7 +334,6 @@
 
     .stat-title { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
     .stat-value { font-size: clamp(18px, 1.8vw, 28px); font-weight: 800; letter-spacing: -0.03em; }
-    .metric-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
     .side-title { font-size: 18px; font-weight: 800; }
 
     .ghost-btn {
@@ -346,34 +345,6 @@
       font-size: 15px;
       font-weight: 800;
       cursor: pointer;
-    }
-
-    .mini-btn { height: 40px; font-size: 13px; padding: 0 14px; width: auto; }
-    .inline-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-    .sync-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 40px;
-      padding: 0 14px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.04);
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .sync-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: var(--red);
-      box-shadow: 0 0 0 6px rgba(239,68,68,.12);
-    }
-
-    .sync-badge.ok .sync-dot {
-      background: var(--green);
-      box-shadow: 0 0 0 6px rgba(34,197,94,.12);
     }
 
     .tasks-list {
@@ -433,9 +404,9 @@
     .focus-mode { color: var(--muted); text-transform: uppercase; letter-spacing: .22em; font-size: 14px; }
     .focus-controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 
-    @media (max-width: 1280px) { .app-grid { grid-template-columns: 1.08fr .92fr; } .main-content { grid-template-columns: minmax(280px, 360px) 1fr; } .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1280px) { .app-grid { grid-template-columns: 1.08fr .92fr; } .main-content { grid-template-columns: minmax(280px, 360px) 1fr; } }
     @media (max-width: 1080px) { html, body { overflow: auto; } .app-shell { height: auto; min-height: calc(100vh - 28px); } .app-grid { grid-template-columns: 1fr; height: auto; } }
-    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } .inline-actions { align-items: stretch; } .sync-badge { width: 100%; justify-content: center; } .mini-btn { width: 100%; } }
+    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -445,11 +416,11 @@
         <div class="topbar">
           <div>
             <h1>Pomodoro Focus</h1>
-            <div class="sub">Un temporizador simple, rapido y sin friccion.</div>
+            <div class="sub">Un temporizador simple, r&aacute;pido y sin fricci&oacute;n.</div>
           </div>
           <div class="top-actions">
-            <button id="infoBtn" class="icon-btn" title="Informacion">i</button>
-            <button id="configBtnTop" class="icon-btn" title="Configuracion">⚙</button>
+            <button id="infoBtn" class="icon-btn" title="Informaci&oacute;n">i</button>
+            <button id="configBtnTop" class="icon-btn" title="Configuraci&oacute;n">⚙</button>
           </div>
         </div>
 
@@ -479,10 +450,10 @@
 
             <div class="panel-box">
               <label class="label" for="taskInput">Tarea actual</label>
-              <input id="taskInput" type="text" placeholder="Ej: redactar landing, estudiar ingles, revisar CMS" />
+              <input id="taskInput" type="text" placeholder="Ej: redactar landing, estudiar ingl&eacute;s, revisar CMS" />
             </div>
 
-            <div class="progress-text" id="progressText">Todavia no empezaste este bloque.</div>
+            <div class="progress-text" id="progressText">Todav&iacute;a no empezaste este bloque.</div>
 
             <div class="controls-grid">
               <button class="action-btn btn-start" id="startBtn">Iniciar</button>
@@ -496,27 +467,21 @@
           </div>
         </div>
 
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-title">Pomodoros completados hoy</div><div class="stat-value" id="completedToday">0</div><div class="metric-note">Cuenta real de bloques de trabajo completados.</div></div>
-          <div class="stat-card"><div class="stat-title">Modo actual</div><div class="stat-value" id="modeMetric">Trabajo</div><div class="metric-note">Cambia segun el ciclo del temporizador.</div></div>
-          <div class="stat-card"><div class="stat-title">Minutos hoy</div><div class="stat-value" id="todayMinutesMetric">0 min</div><div class="metric-note">Basado en sesiones guardadas.</div></div>
-          <div class="stat-card"><div class="stat-title">Minutos esta semana</div><div class="stat-value" id="weekMinutesMetric">0 min</div><div class="metric-note">Desde el lunes actual.</div></div>
-          <div class="stat-card"><div class="stat-title">Minutos este mes</div><div class="stat-value" id="monthMinutesMetric">0 min</div><div class="metric-note">Acumulado del mes calendario.</div></div>
-          <div class="stat-card"><div class="stat-title">Minutos este anio</div><div class="stat-value" id="yearMinutesMetric">0 min</div><div class="metric-note">Acumulado anual.</div></div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-title">Pomodoros completados hoy</div>
+            <div class="stat-value" id="completedToday">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Modo actual</div>
+            <div class="stat-value" id="modeMetric">Trabajo</div>
+          </div>
         </div>
       </section>
 
       <aside class="card side-card">
-        <div style="width:100%; display:grid; grid-template-rows:auto auto auto 1fr auto; gap:14px; min-height:100%;">
+        <div style="width:100%; display:grid; grid-template-rows:auto auto 1fr auto; gap:14px; min-height:100%;">
           <div class="side-title">Historial de hoy</div>
-
-          <div class="inline-actions">
-            <div class="sync-badge" id="syncBadge">
-              <span class="sync-dot"></span>
-              <span id="syncStatus">Sin conexion con Supabase.</span>
-            </div>
-            <button class="ghost-btn mini-btn" id="clearHistoryBtn">Limpiar historial local</button>
-          </div>
 
           <div class="stat-card" style="min-height:auto; padding:12px 14px;">
             <div class="stat-title" style="margin-bottom:6px;">Tiempo total enfocado</div>
@@ -528,15 +493,25 @@
             <div class="tasks-list" id="historyList"></div>
           </div>
 
-          <div class="foot-note">El historial visible sigue siendo local para que no pierdas fluidez en la UI. Las metricas agregadas salen de Supabase cuando hay conexion y, si no, la app sigue funcionando con almacenamiento local.</div>
+          <div class="foot-note">Se guarda localmente en este navegador. El historial se reinicia cada d&iacute;a y te muestra un aproximado de tiempo por tarea.</div>
         </div>
       </aside>
     </div>
   </div>
 
+  <div hidden aria-hidden="true">
+    <span id="todayMinutesMetric"></span>
+    <span id="weekMinutesMetric"></span>
+    <span id="monthMinutesMetric"></span>
+    <span id="yearMinutesMetric"></span>
+    <button id="clearHistoryBtn" type="button"></button>
+    <span id="syncBadge"></span>
+    <span id="syncStatus"></span>
+  </div>
+
   <div class="modal" id="configModal">
     <div class="modal-card">
-      <h3>Configuracion</h3>
+      <h3>Configuraci&oacute;n</h3>
       <div class="settings-grid">
         <div><label class="label" for="workInput">Trabajo (min)</label><input type="number" id="workInput" min="1" value="25" /></div>
         <div><label class="label" for="shortBreakInput">Descanso corto (min)</label><input type="number" id="shortBreakInput" min="1" value="5" /></div>
@@ -544,7 +519,7 @@
         <div><label class="label" for="longBreakEveryInput">Descanso largo cada</label><input type="number" id="longBreakEveryInput" min="1" value="4" /></div>
       </div>
       <div class="toggle-list">
-        <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar automaticamente la siguiente sesion</span></label>
+        <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar autom&aacute;ticamente la siguiente sesi&oacute;n</span></label>
         <label class="toggle-item"><input type="checkbox" id="notificationsEnabled" /> <span>Activar notificaciones del navegador</span></label>
       </div>
       <div class="modal-actions">
@@ -556,15 +531,15 @@
 
   <div class="modal" id="infoModal">
     <div class="modal-card">
-      <h3>Como usar esta app</h3>
+      <h3>C&oacute;mo usar esta app</h3>
       <ul>
         <li>Escribe una tarea y presiona <strong>Iniciar</strong>.</li>
-        <li>Trabaja en bloques de enfoque. Al terminar, pasaras a descanso corto o largo segun el ciclo.</li>
+        <li>Trabaja en bloques de enfoque. Al terminar, pasar&aacute;s a descanso corto o largo seg&uacute;n el ciclo.</li>
         <li>Puedes pausar, saltar o reiniciar en cualquier momento.</li>
-        <li><strong>Reiniciar</strong> solo reinicia el bloque actual; no borra estadisticas.</li>
-        <li>Usa configuracion para ajustar tiempos y automatizaciones.</li>
+        <li><strong>Reiniciar</strong> solo reinicia el bloque actual; no borra estad&iacute;sticas.</li>
+        <li>Usa configuraci&oacute;n para ajustar tiempos y automatizaciones.</li>
       </ul>
-      <p><strong>Importante:</strong> si Supabase no esta configurado, la app sigue guardando localmente, pero las metricas historicas fuera del dia actual quedan limitadas.</p>
+      <p><strong>Importante:</strong> si Supabase no est&aacute; configurado, la app sigue guardando localmente, pero las m&eacute;tricas hist&oacute;ricas fuera del d&iacute;a actual quedan limitadas.</p>
       <div class="modal-actions">
         <button class="ghost-btn" id="closeInfoBtn" style="width:auto; padding:0 18px;">Cerrar</button>
       </div>
@@ -578,7 +553,7 @@
         <div class="focus-mode" id="focusModeLabel">Trabajo</div>
         <div class="focus-task" id="focusTaskLabel">Sin tarea definida</div>
         <p class="focus-time" id="focusTimer">25:00</p>
-        <div class="progress-text" id="focusOverlayText">Todavia no empezaste este bloque.</div>
+        <div class="progress-text" id="focusOverlayText">Todav&iacute;a no empezaste este bloque.</div>
         <div class="focus-controls">
           <button class="action-btn btn-start" id="focusStartBtn" style="min-width:170px;">Iniciar</button>
           <button class="action-btn btn-pause" id="focusPauseBtn" style="min-width:170px;">Pausar</button>
