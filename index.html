@@ -335,6 +335,20 @@
     .stat-title { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
     .stat-value { font-size: clamp(18px, 1.8vw, 28px); font-weight: 800; letter-spacing: -0.03em; }
     .side-title { font-size: 18px; font-weight: 800; }
+    .secondary-metric { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .metrics-stack { display: grid; gap: 10px; margin-top: 10px; }
+    .metrics-mini {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(255,255,255,.03);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .metrics-mini strong { font-size: 14px; color: var(--text); }
+    .metrics-mini span { font-size: 15px; font-weight: 800; color: var(--text); }
 
     .ghost-btn {
       height: 50px;
@@ -473,8 +487,9 @@
             <div class="stat-value" id="completedToday">0</div>
           </div>
           <div class="stat-card">
-            <div class="stat-title">Modo actual</div>
-            <div class="stat-value" id="modeMetric">Trabajo</div>
+            <div class="stat-title">Minutos hoy</div>
+            <div class="stat-value" id="todayMinutesMetric">0 min</div>
+            <div class="secondary-metric">Modo actual: <span id="modeMetric">Trabajo</span></div>
           </div>
         </div>
       </section>
@@ -500,10 +515,6 @@
   </div>
 
   <div hidden aria-hidden="true">
-    <span id="todayMinutesMetric"></span>
-    <span id="weekMinutesMetric"></span>
-    <span id="monthMinutesMetric"></span>
-    <span id="yearMinutesMetric"></span>
     <button id="clearHistoryBtn" type="button"></button>
     <span id="syncBadge"></span>
     <span id="syncStatus"></span>
@@ -540,6 +551,20 @@
         <li>Usa configuraci&oacute;n para ajustar tiempos y automatizaciones.</li>
       </ul>
       <p><strong>Importante:</strong> si Supabase no est&aacute; configurado, la app sigue guardando localmente, pero las m&eacute;tricas hist&oacute;ricas fuera del d&iacute;a actual quedan limitadas.</p>
+      <div class="metrics-stack">
+        <div class="metrics-mini">
+          <strong>Minutos esta semana</strong>
+          <span id="weekMinutesMetric">0 min</span>
+        </div>
+        <div class="metrics-mini">
+          <strong>Minutos este mes</strong>
+          <span id="monthMinutesMetric">0 min</span>
+        </div>
+        <div class="metrics-mini">
+          <strong>Minutos este anio</strong>
+          <span id="yearMinutesMetric">0 min</span>
+        </div>
+      </div>
       <div class="modal-actions">
         <button class="ghost-btn" id="closeInfoBtn" style="width:auto; padding:0 18px;">Cerrar</button>
       </div>
