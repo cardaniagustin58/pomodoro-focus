@@ -537,10 +537,120 @@ function wrapPdfText(doc, text, x, y, maxWidth, lineHeight = 7) {
   return y + (lines.length * lineHeight);
 }
 
-function ensurePdfPage(doc, cursorY, margin = 16) {
-  if (cursorY <= 270) return cursorY;
-  doc.addPage();
-  return margin;
+function pdfRoundedCard(doc, x, y, w, h, fillColor = [26, 36, 66]) {
+  doc.setFillColor(...fillColor);
+  doc.roundedRect(x, y, w, h, 6, 6, 'F');
+}
+
+function pdfSectionTitle(doc, title, subtitle, x, y, width = 178) {
+  doc.setTextColor(238, 242, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(title, x, y);
+  if (subtitle) {
+    doc.setTextColor(154, 164, 178);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const rightX = x + width;
+    doc.text(subtitle, rightX, y, { align: 'right' });
+  }
+}
+
+function pdfMetricCard(doc, x, y, w, h, label, value, accent = [124, 58, 237]) {
+  pdfRoundedCard(doc, x, y, w, h, [24, 34, 60]);
+  doc.setFillColor(...accent);
+  doc.roundedRect(x, y, w, 5, 6, 6, 'F');
+  doc.setTextColor(154, 164, 178);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(label, x + 6, y + 15);
+  doc.setTextColor(238, 242, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  const wrapped = doc.splitTextToSize(String(value), w - 12).slice(0, 2);
+  wrapped.forEach((line, index) => {
+    doc.text(line, x + 6, y + 28 + (index * 8));
+  });
+}
+
+function pdfFilterChip(doc, x, y, label, value) {
+  const text = `${label}: ${value}`;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const width = doc.getTextWidth(text) + 12;
+  doc.setFillColor(36, 49, 84);
+  doc.roundedRect(x, y, width, 8, 4, 4, 'F');
+  doc.setTextColor(230, 234, 248);
+  doc.text(text, x + 6, y + 5.5);
+  return width + 4;
+}
+
+function pdfBarChart(doc, x, y, w, title, subtitle, items, colors) {
+  const cardHeight = 14 + Math.max(items.length, 1) * 16;
+  pdfRoundedCard(doc, x, y, w, cardHeight, [24, 34, 60]);
+  pdfSectionTitle(doc, title, subtitle, x + 6, y + 11, w - 12);
+
+  if (!items.length) {
+    doc.setTextColor(154, 164, 178);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('Sin datos para este filtro.', x + 6, y + 26);
+    return cardHeight;
+  }
+
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+  let rowY = y + 22;
+
+  items.forEach((item) => {
+    const label = item.label.length > 24 ? `${item.label.slice(0, 21)}...` : item.label;
+    doc.setTextColor(238, 242, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(label, x + 6, rowY);
+    doc.setTextColor(154, 164, 178);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatMinutesLabel(item.value), x + w - 6, rowY, { align: 'right' });
+
+    doc.setFillColor(46, 57, 92);
+    doc.roundedRect(x + 6, rowY + 3, w - 12, 4.5, 2, 2, 'F');
+    doc.setFillColor(...colors);
+    doc.roundedRect(x + 6, rowY + 3, Math.max(8, ((w - 12) * item.value) / maxValue), 4.5, 2, 2, 'F');
+    rowY += 16;
+  });
+
+  return cardHeight;
+}
+
+function pdfRecentSessions(doc, x, y, w, rows) {
+  const visibleRows = rows.slice(0, 6);
+  const cardHeight = 18 + Math.max(visibleRows.length, 1) * 16;
+  pdfRoundedCard(doc, x, y, w, cardHeight, [24, 34, 60]);
+  pdfSectionTitle(doc, 'Sesiones recientes', `${rows.length} en el filtro actual`, x + 6, y + 11, w - 12);
+
+  if (!visibleRows.length) {
+    doc.setTextColor(154, 164, 178);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('No hay sesiones para exportar.', x + 6, y + 26);
+    return cardHeight;
+  }
+
+  let rowY = y + 22;
+  visibleRows.forEach((row) => {
+    doc.setTextColor(238, 242, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(normalizeProject(row.project_name), x + 6, rowY);
+    doc.setTextColor(230, 234, 248);
+    doc.setFont('helvetica', 'normal');
+    doc.text(normalizeTask(row.task), x + 6, rowY + 5);
+    doc.setTextColor(154, 164, 178);
+    doc.text(new Date(row.created_at).toLocaleDateString('es-AR'), x + 6, rowY + 10);
+    doc.text(`${Number(row.minutes) || 0} min`, x + w - 6, rowY + 5, { align: 'right' });
+    rowY += 16;
+  });
+
+  return cardHeight;
 }
 
 function downloadMetricsPdf() {
@@ -553,116 +663,69 @@ function downloadMetricsPdf() {
   const filteredRows = getCurrentFilteredRows();
   const summary = computeMetricsSummary(filteredRows);
   const generatedAt = new Date().toLocaleString('es-AR');
+  const projectData = aggregateByProject(filteredRows);
+  const taskData = aggregateByTask(filteredRows);
+  const dayData = aggregateByDay(filteredRows);
+  const monthData = aggregateByMonth(filteredRows);
   const doc = new jsPdfApi({ unit: 'mm', format: 'a4' });
-  const margin = 16;
-  let y = margin;
+  const margin = 14;
+  const pageWidth = 210;
 
   doc.setFillColor(16, 24, 47);
   doc.rect(0, 0, 210, 297, 'F');
-  doc.setTextColor(238, 242, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.text('Reporte de métricas Pomodoro', margin, y);
-  y += 10;
+  doc.setFillColor(124, 58, 237);
+  doc.circle(180, 28, 28, 'F');
+  doc.setFillColor(56, 189, 248);
+  doc.circle(160, 54, 18, 'F');
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
   doc.setTextColor(154, 164, 178);
-  doc.text(`Generado: ${generatedAt}`, margin, y);
-  y += 7;
-  doc.text(`Usuario: ${getUserLabel()}`, margin, y);
-  y += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text('Pomodoro Focus · Reporte visual', margin, 18);
 
   doc.setTextColor(238, 242, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Filtros aplicados', margin, y);
-  y += 8;
+  doc.setFontSize(24);
+  doc.text('Resumen de métricas', margin, 30);
+  doc.setFontSize(24);
+  doc.text('para compartir', margin, 40);
+
+  doc.setTextColor(154, 164, 178);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const filtersText = [
-    `Proyecto: ${state.metricsFilters.project || 'Todos'}`,
-    `Tarea: ${state.metricsFilters.task || 'Todas'}`,
-    `Período: ${getRangeLabel(state.metricsFilters.range)}`,
-    `Desde: ${state.metricsFilters.startDate || '-'}`,
-    `Hasta: ${state.metricsFilters.endDate || '-'}`,
-  ];
-  filtersText.forEach((line) => {
-    doc.text(line, margin, y);
-    y += 6;
-  });
+  doc.text(`Generado el ${generatedAt}`, margin, 50);
+  doc.text(`Cuenta: ${getUserLabel()}`, margin, 56);
 
-  y += 4;
-  y = ensurePdfPage(doc, y, margin);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Resumen', margin, y);
-  y += 8;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  [
-    `Minutos filtrados: ${formatMinutesLabel(summary.totalMinutes)}`,
-    `Pomodoros filtrados: ${summary.pomodoros}`,
-    `Tareas distintas: ${summary.distinctTasks}`,
-    `Proyectos distintos: ${summary.distinctProjects}`,
-    `Proyecto principal: ${summary.topProject}`,
-    `Tarea principal: ${summary.topTask}`,
-  ].forEach((line) => {
-    doc.text(line, margin, y);
-    y += 7;
-  });
-
-  const sections = [
-    { title: 'Minutos por proyecto', items: aggregateByProject(filteredRows) },
-    { title: 'Minutos por tarea', items: aggregateByTask(filteredRows) },
-    { title: 'Minutos por día', items: aggregateByDay(filteredRows) },
-    { title: 'Minutos por mes', items: aggregateByMonth(filteredRows) },
-  ];
-
-  sections.forEach((section) => {
-    y += 4;
-    y = ensurePdfPage(doc, y, margin);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text(section.title, margin, y);
-    y += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    if (!section.items.length) {
-      doc.text('Sin datos para este gráfico con el filtro actual.', margin, y);
-      y += 7;
-      return;
-    }
-
-    section.items.forEach((item) => {
-      y = ensurePdfPage(doc, y, margin);
-      doc.text(`${item.label}: ${formatMinutesLabel(item.value)}`, margin, y);
-      y += 6;
-    });
-  });
-
-  y += 4;
-  y = ensurePdfPage(doc, y, margin);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Sesiones filtradas', margin, y);
-  y += 8;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-
-  if (!filteredRows.length) {
-    doc.text('No hay sesiones para exportar con el filtro actual.', margin, y);
-  } else {
-    filteredRows
-      .slice()
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .forEach((row) => {
-        y = ensurePdfPage(doc, y, margin);
-        const line = `${normalizeProject(row.project_name)} | ${normalizeTask(row.task)} | ${new Date(row.created_at).toLocaleDateString('es-AR')} ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} | ${Number(row.minutes) || 0} min`;
-        y = wrapPdfText(doc, line, margin, y, 178, 6);
-        y += 2;
-      });
+  let chipX = margin;
+  const chipY = 64;
+  chipX += pdfFilterChip(doc, chipX, chipY, 'Proyecto', state.metricsFilters.project || 'Todos');
+  chipX += pdfFilterChip(doc, chipX, chipY, 'Tarea', state.metricsFilters.task || 'Todas');
+  pdfFilterChip(doc, margin, chipY + 12, 'Período', getRangeLabel(state.metricsFilters.range));
+  if (state.metricsFilters.range === 'custom') {
+    pdfFilterChip(doc, 70, chipY + 12, 'Desde', state.metricsFilters.startDate || '-');
+    pdfFilterChip(doc, 112, chipY + 12, 'Hasta', state.metricsFilters.endDate || '-');
   }
+
+  const cardY = 84;
+  const cardGap = 6;
+  const cardWidth = (pageWidth - (margin * 2) - (cardGap * 2)) / 3;
+  pdfMetricCard(doc, margin, cardY, cardWidth, 34, 'Minutos filtrados', formatMinutesLabel(summary.totalMinutes), [124, 58, 237]);
+  pdfMetricCard(doc, margin + cardWidth + cardGap, cardY, cardWidth, 34, 'Pomodoros', summary.pomodoros, [56, 189, 248]);
+  pdfMetricCard(doc, margin + ((cardWidth + cardGap) * 2), cardY, cardWidth, 34, 'Proyectos', summary.distinctProjects, [34, 197, 94]);
+  pdfMetricCard(doc, margin, cardY + 40, 86, 34, 'Proyecto principal', summary.topProject, [245, 158, 11]);
+  pdfMetricCard(doc, margin + 92, cardY + 40, 90, 34, 'Tarea principal', summary.topTask, [239, 68, 68]);
+
+  pdfBarChart(doc, margin, 166, 88, 'Minutos por proyecto', 'Top del filtro actual', projectData.slice(0, 4), [124, 58, 237]);
+  pdfBarChart(doc, 108, 166, 88, 'Minutos por tarea', 'Actividades principales', taskData.slice(0, 4), [245, 158, 11]);
+
+  doc.addPage();
+  doc.setFillColor(16, 24, 47);
+  doc.rect(0, 0, 210, 297, 'F');
+
+  pdfSectionTitle(doc, 'Tendencias del período', 'Lectura rápida para cliente', margin, 18, 182);
+  pdfBarChart(doc, margin, 24, 88, 'Minutos por día', 'Distribución diaria', dayData.slice(-6), [56, 189, 248]);
+  pdfBarChart(doc, 108, 24, 88, 'Minutos por mes', 'Acumulado reciente', monthData.slice(-6), [34, 197, 94]);
+  pdfRecentSessions(doc, margin, 130, 182, filteredRows.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
 
   const safeDate = new Date().toISOString().slice(0, 10);
   doc.save(`pomodoro-metricas-${safeDate}.pdf`);
