@@ -567,7 +567,7 @@ function pdfMetricCard(doc, x, y, w, h, label, value, accent = [124, 58, 237]) {
   doc.setTextColor(238, 242, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  const wrapped = doc.splitTextToSize(String(value), w - 12).slice(0, 2);
+  const wrapped = doc.splitTextToSize(String(value), w - 16).slice(0, 2);
   wrapped.forEach((line, index) => {
     doc.text(line, x + 6, y + 28 + (index * 8));
   });
@@ -586,7 +586,7 @@ function pdfFilterChip(doc, x, y, label, value) {
 }
 
 function pdfBarChart(doc, x, y, w, title, subtitle, items, colors) {
-  const cardHeight = 14 + Math.max(items.length, 1) * 16;
+  const cardHeight = 18 + Math.max(items.length, 1) * 18;
   pdfRoundedCard(doc, x, y, w, cardHeight, [24, 34, 60]);
   pdfSectionTitle(doc, title, subtitle, x + 6, y + 11, w - 12);
 
@@ -599,7 +599,7 @@ function pdfBarChart(doc, x, y, w, title, subtitle, items, colors) {
   }
 
   const maxValue = Math.max(...items.map((item) => item.value), 1);
-  let rowY = y + 22;
+  let rowY = y + 24;
 
   items.forEach((item) => {
     const label = item.label.length > 24 ? `${item.label.slice(0, 21)}...` : item.label;
@@ -612,10 +612,10 @@ function pdfBarChart(doc, x, y, w, title, subtitle, items, colors) {
     doc.text(formatMinutesLabel(item.value), x + w - 6, rowY, { align: 'right' });
 
     doc.setFillColor(46, 57, 92);
-    doc.roundedRect(x + 6, rowY + 3, w - 12, 4.5, 2, 2, 'F');
+    doc.roundedRect(x + 6, rowY + 4, w - 12, 4.5, 2, 2, 'F');
     doc.setFillColor(...colors);
-    doc.roundedRect(x + 6, rowY + 3, Math.max(8, ((w - 12) * item.value) / maxValue), 4.5, 2, 2, 'F');
-    rowY += 16;
+    doc.roundedRect(x + 6, rowY + 4, Math.max(8, ((w - 12) * item.value) / maxValue), 4.5, 2, 2, 'F');
+    rowY += 18;
   });
 
   return cardHeight;
@@ -623,7 +623,7 @@ function pdfBarChart(doc, x, y, w, title, subtitle, items, colors) {
 
 function pdfRecentSessions(doc, x, y, w, rows) {
   const visibleRows = rows.slice(0, 6);
-  const cardHeight = 18 + Math.max(visibleRows.length, 1) * 16;
+  const cardHeight = 22 + Math.max(visibleRows.length, 1) * 19;
   pdfRoundedCard(doc, x, y, w, cardHeight, [24, 34, 60]);
   pdfSectionTitle(doc, 'Sesiones recientes', `${rows.length} en el filtro actual`, x + 6, y + 11, w - 12);
 
@@ -635,7 +635,7 @@ function pdfRecentSessions(doc, x, y, w, rows) {
     return cardHeight;
   }
 
-  let rowY = y + 22;
+  let rowY = y + 26;
   visibleRows.forEach((row) => {
     doc.setTextColor(238, 242, 255);
     doc.setFont('helvetica', 'bold');
@@ -647,7 +647,7 @@ function pdfRecentSessions(doc, x, y, w, rows) {
     doc.setTextColor(154, 164, 178);
     doc.text(new Date(row.created_at).toLocaleDateString('es-AR'), x + 6, rowY + 10);
     doc.text(`${Number(row.minutes) || 0} min`, x + w - 6, rowY + 5, { align: 'right' });
-    rowY += 16;
+    rowY += 19;
   });
 
   return cardHeight;
@@ -668,15 +668,15 @@ function downloadMetricsPdf() {
   const dayData = aggregateByDay(filteredRows);
   const monthData = aggregateByMonth(filteredRows);
   const doc = new jsPdfApi({ unit: 'mm', format: 'a4' });
-  const margin = 14;
+  const margin = 18;
   const pageWidth = 210;
 
   doc.setFillColor(16, 24, 47);
   doc.rect(0, 0, 210, 297, 'F');
   doc.setFillColor(124, 58, 237);
-  doc.circle(180, 28, 28, 'F');
+  doc.circle(186, 26, 20, 'F');
   doc.setFillColor(56, 189, 248);
-  doc.circle(160, 54, 18, 'F');
+  doc.circle(170, 48, 14, 'F');
 
   doc.setTextColor(154, 164, 178);
   doc.setFont('helvetica', 'normal');
@@ -697,7 +697,7 @@ function downloadMetricsPdf() {
   doc.text(`Cuenta: ${getUserLabel()}`, margin, 56);
 
   let chipX = margin;
-  const chipY = 64;
+  const chipY = 68;
   chipX += pdfFilterChip(doc, chipX, chipY, 'Proyecto', state.metricsFilters.project || 'Todos');
   chipX += pdfFilterChip(doc, chipX, chipY, 'Tarea', state.metricsFilters.task || 'Todas');
   pdfFilterChip(doc, margin, chipY + 12, 'Período', getRangeLabel(state.metricsFilters.range));
@@ -706,26 +706,26 @@ function downloadMetricsPdf() {
     pdfFilterChip(doc, 112, chipY + 12, 'Hasta', state.metricsFilters.endDate || '-');
   }
 
-  const cardY = 84;
-  const cardGap = 6;
+  const cardY = 92;
+  const cardGap = 8;
   const cardWidth = (pageWidth - (margin * 2) - (cardGap * 2)) / 3;
   pdfMetricCard(doc, margin, cardY, cardWidth, 34, 'Minutos filtrados', formatMinutesLabel(summary.totalMinutes), [124, 58, 237]);
   pdfMetricCard(doc, margin + cardWidth + cardGap, cardY, cardWidth, 34, 'Pomodoros', summary.pomodoros, [56, 189, 248]);
   pdfMetricCard(doc, margin + ((cardWidth + cardGap) * 2), cardY, cardWidth, 34, 'Proyectos', summary.distinctProjects, [34, 197, 94]);
-  pdfMetricCard(doc, margin, cardY + 40, 86, 34, 'Proyecto principal', summary.topProject, [245, 158, 11]);
-  pdfMetricCard(doc, margin + 92, cardY + 40, 90, 34, 'Tarea principal', summary.topTask, [239, 68, 68]);
+  pdfMetricCard(doc, margin, cardY + 42, 80, 36, 'Proyecto principal', summary.topProject, [245, 158, 11]);
+  pdfMetricCard(doc, margin + 88, cardY + 42, 104, 36, 'Tarea principal', summary.topTask, [239, 68, 68]);
 
-  pdfBarChart(doc, margin, 166, 88, 'Minutos por proyecto', 'Top del filtro actual', projectData.slice(0, 4), [124, 58, 237]);
-  pdfBarChart(doc, 108, 166, 88, 'Minutos por tarea', 'Actividades principales', taskData.slice(0, 4), [245, 158, 11]);
+  pdfBarChart(doc, margin, 182, 84, 'Minutos por proyecto', 'Top del filtro actual', projectData.slice(0, 4), [124, 58, 237]);
+  pdfBarChart(doc, 108, 182, 84, 'Minutos por tarea', 'Actividades principales', taskData.slice(0, 4), [245, 158, 11]);
 
   doc.addPage();
   doc.setFillColor(16, 24, 47);
   doc.rect(0, 0, 210, 297, 'F');
 
-  pdfSectionTitle(doc, 'Tendencias del período', 'Lectura rápida para cliente', margin, 18, 182);
-  pdfBarChart(doc, margin, 24, 88, 'Minutos por día', 'Distribución diaria', dayData.slice(-6), [56, 189, 248]);
-  pdfBarChart(doc, 108, 24, 88, 'Minutos por mes', 'Acumulado reciente', monthData.slice(-6), [34, 197, 94]);
-  pdfRecentSessions(doc, margin, 130, 182, filteredRows.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+  pdfSectionTitle(doc, 'Tendencias del período', 'Lectura rápida para cliente', margin, 20, 174);
+  pdfBarChart(doc, margin, 28, 84, 'Minutos por día', 'Distribución diaria', dayData.slice(-6), [56, 189, 248]);
+  pdfBarChart(doc, 108, 28, 84, 'Minutos por mes', 'Acumulado reciente', monthData.slice(-6), [34, 197, 94]);
+  pdfRecentSessions(doc, margin, 144, 174, filteredRows.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
 
   const safeDate = new Date().toISOString().slice(0, 10);
   doc.save(`pomodoro-metricas-${safeDate}.pdf`);
