@@ -348,6 +348,18 @@
       padding: 0 16px;
       cursor: pointer;
     }
+    .metric-btn {
+      min-width: 110px;
+      height: 46px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      padding: 0 16px;
+      cursor: pointer;
+    }
     .auth-status { font-size: 13px; color: var(--muted); line-height: 1.5; }
     .metrics-stack { display: grid; gap: 10px; margin-top: 10px; }
     .metrics-mini {
@@ -424,6 +436,96 @@
     }
     .auth-message.success { color: #c4f5d1; }
     .auth-message.error { color: #ffb4b4; }
+    .metrics-modal-card { width: min(960px, 100%); }
+    .metrics-filters {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .metrics-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .metrics-summary-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255,255,255,.03);
+      padding: 14px;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .metrics-summary-card strong {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .metrics-summary-card span {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+    .metrics-panel {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: rgba(255,255,255,.03);
+      padding: 14px;
+      margin-top: 16px;
+    }
+    .metrics-panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .metrics-panel-head h4 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .metrics-panel-note {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .metrics-session-list {
+      max-height: 320px;
+      overflow: auto;
+      display: grid;
+      gap: 10px;
+    }
+    .metrics-session-item {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(255,255,255,.03);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+    .metrics-session-item strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .metrics-session-item span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .metrics-empty {
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
 
     .focus-overlay {
       position: fixed; inset: 0; z-index: 1200; display: none;
@@ -444,7 +546,7 @@
 
     @media (max-width: 1280px) { .app-grid { grid-template-columns: 1.08fr .92fr; } .main-content { grid-template-columns: minmax(280px, 360px) 1fr; } }
     @media (max-width: 1080px) { html, body { overflow: auto; } .app-shell { height: auto; min-height: calc(100vh - 28px); } .app-grid { grid-template-columns: 1fr; height: auto; } }
-    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } .metrics-filters { grid-template-columns: 1fr; } .metrics-summary-grid { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
@@ -458,6 +560,7 @@
           </div>
           <div class="top-actions">
             <button id="authBtn" class="auth-btn" title="Sesion">Ingresar</button>
+            <button id="metricsBtn" class="metric-btn" title="Metricas">Métricas</button>
             <button id="infoBtn" class="icon-btn" title="Informaci&oacute;n">i</button>
             <button id="configBtnTop" class="icon-btn" title="Configuraci&oacute;n">⚙</button>
           </div>
@@ -533,7 +636,7 @@
             <div class="tasks-list" id="historyList"></div>
           </div>
 
-          <div class="foot-note">Se guarda localmente en este navegador. El historial se reinicia cada d&iacute;a y te muestra un aproximado de tiempo por tarea.</div>
+          <div class="foot-note"></div>
         </div>
       </aside>
     </div>
@@ -606,23 +709,69 @@
         <li><strong>Reiniciar</strong> solo reinicia el bloque actual; no borra estad&iacute;sticas.</li>
         <li>Usa configuraci&oacute;n para ajustar tiempos y automatizaciones.</li>
       </ul>
-      <p><strong>Importante:</strong> si Supabase no est&aacute; configurado, la app sigue guardando localmente, pero las m&eacute;tricas hist&oacute;ricas fuera del d&iacute;a actual quedan limitadas.</p>
-      <div class="metrics-stack">
-        <div class="metrics-mini">
-          <strong>Minutos esta semana</strong>
-          <span id="weekMinutesMetric">0 min</span>
-        </div>
-        <div class="metrics-mini">
-          <strong>Minutos este mes</strong>
-          <span id="monthMinutesMetric">0 min</span>
-        </div>
-        <div class="metrics-mini">
-          <strong>Minutos este anio</strong>
-          <span id="yearMinutesMetric">0 min</span>
-        </div>
-      </div>
+      <p><strong>Importante:</strong> ahora las m&eacute;tricas dependen de la cuenta iniciada. Cada persona ve solo sus propias sesiones y sus propios totales.</p>
       <div class="modal-actions">
         <button class="ghost-btn" id="closeInfoBtn" style="width:auto; padding:0 18px;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="metricsModal">
+    <div class="modal-card metrics-modal-card">
+      <h3>Métricas y filtros</h3>
+      <p class="auth-helper">Consultá tus sesiones por período, rango de fechas o nombre de proyecto/tarea. Todo se calcula con la cuenta actualmente iniciada.</p>
+      <div class="metrics-filters">
+        <div>
+          <label class="label" for="metricsTaskFilter">Proyecto o tarea</label>
+          <input type="text" id="metricsTaskFilter" placeholder="Ej: landing, cliente X, diseño" />
+        </div>
+        <div>
+          <label class="label" for="metricsRangeFilter">Período</label>
+          <select id="metricsRangeFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+            <option value="today">Hoy</option>
+            <option value="week">Esta semana</option>
+            <option value="month">Este mes</option>
+            <option value="year">Este año</option>
+            <option value="all">Todo</option>
+            <option value="custom">Rango personalizado</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="metricsStartDate">Desde</label>
+          <input type="date" id="metricsStartDate" />
+        </div>
+        <div>
+          <label class="label" for="metricsEndDate">Hasta</label>
+          <input type="date" id="metricsEndDate" />
+        </div>
+      </div>
+      <div class="metrics-summary-grid">
+        <div class="metrics-summary-card">
+          <strong>Minutos filtrados</strong>
+          <span id="metricsSummaryMinutes">0 min</span>
+        </div>
+        <div class="metrics-summary-card">
+          <strong>Pomodoros filtrados</strong>
+          <span id="metricsSummaryPomodoros">0</span>
+        </div>
+        <div class="metrics-summary-card">
+          <strong>Tareas distintas</strong>
+          <span id="metricsSummaryTasks">0</span>
+        </div>
+        <div class="metrics-summary-card">
+          <strong>Tarea principal</strong>
+          <span id="metricsSummaryTopTask" style="font-size:20px;">-</span>
+        </div>
+      </div>
+      <div class="metrics-panel">
+        <div class="metrics-panel-head">
+          <h4>Sesiones filtradas</h4>
+          <div class="metrics-panel-note" id="metricsResultsCount">0 resultados</div>
+        </div>
+        <div class="metrics-session-list" id="metricsSessionList"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="closeMetricsBtn" style="width:auto; padding:0 18px;">Cerrar</button>
       </div>
     </div>
   </div>

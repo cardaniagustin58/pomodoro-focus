@@ -19,9 +19,6 @@ const els = {
   completedToday: document.getElementById('completedToday'),
   modeMetric: document.getElementById('modeMetric'),
   todayMinutesMetric: document.getElementById('todayMinutesMetric'),
-  weekMinutesMetric: document.getElementById('weekMinutesMetric'),
-  monthMinutesMetric: document.getElementById('monthMinutesMetric'),
-  yearMinutesMetric: document.getElementById('yearMinutesMetric'),
   focusModeBtn: document.getElementById('focusModeBtn'),
   workInput: document.getElementById('workInput'),
   shortBreakInput: document.getElementById('shortBreakInput'),
@@ -35,11 +32,24 @@ const els = {
   closeInfoBtn: document.getElementById('closeInfoBtn'),
   configBtnTop: document.getElementById('configBtnTop'),
   authBtn: document.getElementById('authBtn'),
+  metricsBtn: document.getElementById('metricsBtn'),
   sessionModal: document.getElementById('sessionModal'),
   closeSessionBtn: document.getElementById('closeSessionBtn'),
   configModal: document.getElementById('configModal'),
   closeConfigBtn: document.getElementById('closeConfigBtn'),
   saveConfigBtn: document.getElementById('saveConfigBtn'),
+  metricsModal: document.getElementById('metricsModal'),
+  closeMetricsBtn: document.getElementById('closeMetricsBtn'),
+  metricsTaskFilter: document.getElementById('metricsTaskFilter'),
+  metricsRangeFilter: document.getElementById('metricsRangeFilter'),
+  metricsStartDate: document.getElementById('metricsStartDate'),
+  metricsEndDate: document.getElementById('metricsEndDate'),
+  metricsSummaryMinutes: document.getElementById('metricsSummaryMinutes'),
+  metricsSummaryPomodoros: document.getElementById('metricsSummaryPomodoros'),
+  metricsSummaryTasks: document.getElementById('metricsSummaryTasks'),
+  metricsSummaryTopTask: document.getElementById('metricsSummaryTopTask'),
+  metricsResultsCount: document.getElementById('metricsResultsCount'),
+  metricsSessionList: document.getElementById('metricsSessionList'),
   authStatus: document.getElementById('authStatus'),
   authMessage: document.getElementById('authMessage'),
   authName: document.getElementById('authName'),
@@ -74,6 +84,7 @@ const state = {
   cyclesCompleted: 0,
   lastActiveDate: getTodayKey(),
   history: [],
+  sessionRows: [],
   deviceId: getOrCreateDeviceId(),
   currentUser: null,
   authReady: false,
@@ -83,6 +94,12 @@ const state = {
     monthMinutes: 0,
     yearMinutes: 0,
     pomodorosToday: 0,
+  },
+  metricsFilters: {
+    range: 'today',
+    task: '',
+    startDate: '',
+    endDate: '',
   },
   supabaseClient: null,
   supabaseReady: false,
@@ -265,6 +282,115 @@ function setAuthMessage(text = '', tone = '') {
     els.authMessage.classList.add(tone);
   }
 }
+
+function normalizeTask(task) {
+  return (task || 'Sin tarea definida').trim();
+}
+
+function sameOrAfterDay(date, yyyyMmDd) {
+  return new Date(`${yyyyMmDd}T00:00:00`) <= date;
+}
+
+function sameOrBeforeDay(date, yyyyMmDd) {
+  return date < addDays(new Date(`${yyyyMmDd}T00:00:00`), 1);
+}
+
+function filterRows(rows, filters) {
+  const now = new Date();
+  const dayStart = startOfDay(now);
+  const weekStart = startOfWeek(now);
+  const monthStart = startOfMonth(now);
+  const yearStart = startOfYear(now);
+  const taskNeedle = (filters.task || '').trim().toLowerCase();
+
+  return rows.filter((row) => {
+    if (row.mode !== 'work') return false;
+
+    const createdAt = new Date(row.created_at);
+    const task = normalizeTask(row.task).toLowerCase();
+
+    if (taskNeedle && !task.includes(taskNeedle)) {
+      return false;
+    }
+
+    if (filters.range === 'today' && createdAt < dayStart) return false;
+    if (filters.range === 'week' && createdAt < weekStart) return false;
+    if (filters.range === 'month' && createdAt < monthStart) return false;
+    if (filters.range === 'year' && createdAt < yearStart) return false;
+
+    if (filters.range === 'custom') {
+      if (filters.startDate && !sameOrAfterDay(createdAt, filters.startDate)) return false;
+      if (filters.endDate && !sameOrBeforeDay(createdAt, filters.endDate)) return false;
+    }
+
+    return true;
+  });
+}
+
+function computeMetricsSummary(rows) {
+  const totalMinutes = rows.reduce((acc, row) => acc + (Number(row.minutes) || 0), 0);
+  const taskTotals = new Map();
+  rows.forEach((row) => {
+    const task = normalizeTask(row.task);
+    taskTotals.set(task, (taskTotals.get(task) || 0) + (Number(row.minutes) || 0));
+  });
+
+  let topTask = '-';
+  let topMinutes = -1;
+  taskTotals.forEach((minutes, task) => {
+    if (minutes > topMinutes) {
+      topMinutes = minutes;
+      topTask = task;
+    }
+  });
+
+  return {
+    totalMinutes,
+    pomodoros: rows.length,
+    distinctTasks: taskTotals.size,
+    topTask,
+  };
+}
+
+function renderMetricsDashboard() {
+  if (!els.metricsSessionList) return;
+
+  const filteredRows = filterRows(state.sessionRows, state.metricsFilters);
+  const summary = computeMetricsSummary(filteredRows);
+
+  if (els.metricsSummaryMinutes) els.metricsSummaryMinutes.textContent = formatMinutesLabel(summary.totalMinutes);
+  if (els.metricsSummaryPomodoros) els.metricsSummaryPomodoros.textContent = String(summary.pomodoros);
+  if (els.metricsSummaryTasks) els.metricsSummaryTasks.textContent = String(summary.distinctTasks);
+  if (els.metricsSummaryTopTask) els.metricsSummaryTopTask.textContent = summary.topTask;
+  if (els.metricsResultsCount) {
+    els.metricsResultsCount.textContent = `${filteredRows.length} ${filteredRows.length === 1 ? 'resultado' : 'resultados'}`;
+  }
+
+  els.metricsSessionList.innerHTML = '';
+  if (!filteredRows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'metrics-empty';
+    empty.textContent = 'No hay sesiones que coincidan con esos filtros.';
+    els.metricsSessionList.appendChild(empty);
+    return;
+  }
+
+  filteredRows
+    .slice()
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .forEach((row) => {
+      const item = document.createElement('div');
+      item.className = 'metrics-session-item';
+      item.innerHTML = `
+        <div>
+          <strong>${escapeHtml(normalizeTask(row.task))}</strong>
+          <span>${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <strong>${Number(row.minutes) || 0} min</strong>
+      `;
+      els.metricsSessionList.appendChild(item);
+    });
+}
 function updateModeButtons() {
   els.modeBtns.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.mode === state.currentMode);
@@ -296,9 +422,6 @@ function applyMetricsToUi() {
   const metrics = state.supabaseReady ? state.metrics : getLocalFallbackMetrics();
   els.completedToday.textContent = metrics.pomodorosToday;
   els.todayMinutesMetric.textContent = formatMinutesLabel(metrics.todayMinutes);
-  els.weekMinutesMetric.textContent = formatMinutesLabel(metrics.weekMinutes);
-  els.monthMinutesMetric.textContent = formatMinutesLabel(metrics.monthMinutes);
-  els.yearMinutesMetric.textContent = formatMinutesLabel(metrics.yearMinutes);
   els.todayFocusTotal.textContent = formatMinutesLabel(metrics.todayMinutes);
 }
 
@@ -540,7 +663,9 @@ function handleAuthSession(session) {
     void refreshMetrics();
   } else {
     state.metrics = getLocalFallbackMetrics();
+    state.sessionRows = [];
     renderHistory();
+    renderMetricsDashboard();
     updateDisplay();
   }
 }
@@ -586,20 +711,16 @@ async function refreshMetrics() {
   if (!state.supabaseClient || !isAuthenticated()) {
     state.metrics = getLocalFallbackMetrics();
     renderHistory();
+    renderMetricsDashboard();
     updateDisplay();
     return;
   }
 
   try {
-    const yearStart = startOfYear(new Date()).toISOString();
-    const nextYearStart = new Date(new Date().getFullYear() + 1, 0, 1, 0, 0, 0, 0).toISOString();
-
     const { data, error } = await state.supabaseClient
       .from('pomodoro_sessions')
       .select('task, minutes, mode, created_at')
       .eq('user_id', state.currentUser.id)
-      .gte('created_at', yearStart)
-      .lt('created_at', nextYearStart)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -610,14 +731,18 @@ async function refreshMetrics() {
       return;
     }
 
+    state.sessionRows = data || [];
     state.metrics = computeMetricsFromRows(data || []);
     state.history = buildTodayHistory(data || []);
     renderHistory();
+    renderMetricsDashboard();
     setSyncStatus('Métricas sincronizadas.', true);
   } catch (error) {
     console.error('Error inesperado consultando métricas:', error);
     setSyncStatus('Error de red consultando métricas.', false);
     state.metrics = getLocalFallbackMetrics();
+    state.sessionRows = [];
+    renderMetricsDashboard();
   }
 
   updateDisplay();
@@ -866,6 +991,8 @@ function openSession() { els.sessionModal.classList.add('open'); }
 function closeSession() { els.sessionModal.classList.remove('open'); }
 function openConfig() { els.configModal.classList.add('open'); }
 function closeConfig() { els.configModal.classList.remove('open'); }
+function openMetrics() { els.metricsModal.classList.add('open'); renderMetricsDashboard(); }
+function closeMetrics() { els.metricsModal.classList.remove('open'); }
 function openFocusMode() { els.focusOverlay.classList.add('open'); updateDisplay(); }
 function closeFocusMode() { els.focusOverlay.classList.remove('open'); }
 
@@ -916,6 +1043,12 @@ bind(els.infoModal, 'click', (e) => {
   if (e.target === els.infoModal) closeInfo();
 });
 
+bind(els.metricsBtn, 'click', openMetrics);
+bind(els.closeMetricsBtn, 'click', closeMetrics);
+bind(els.metricsModal, 'click', (e) => {
+  if (e.target === els.metricsModal) closeMetrics();
+});
+
 bind(els.configBtnTop, 'click', openConfig);
 bind(els.authBtn, 'click', openSession);
 bind(els.closeSessionBtn, 'click', closeSession);
@@ -932,6 +1065,22 @@ bind(els.saveConfigBtn, 'click', () => {
 bind(els.signInBtn, 'click', signInWithEmail);
 bind(els.signUpBtn, 'click', signUpWithEmail);
 bind(els.signOutBtn, 'click', signOutCurrentUser);
+bind(els.metricsTaskFilter, 'input', () => {
+  state.metricsFilters.task = els.metricsTaskFilter.value;
+  renderMetricsDashboard();
+});
+bind(els.metricsRangeFilter, 'change', () => {
+  state.metricsFilters.range = els.metricsRangeFilter.value;
+  renderMetricsDashboard();
+});
+bind(els.metricsStartDate, 'change', () => {
+  state.metricsFilters.startDate = els.metricsStartDate.value;
+  renderMetricsDashboard();
+});
+bind(els.metricsEndDate, 'change', () => {
+  state.metricsFilters.endDate = els.metricsEndDate.value;
+  renderMetricsDashboard();
+});
 bind(els.configModal, 'click', (e) => {
   if (e.target === els.configModal) closeConfig();
 });
@@ -942,6 +1091,7 @@ bind(els.closeFocusBtn, 'click', closeFocusMode);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeInfo();
+    closeMetrics();
     closeSession();
     closeConfig();
     closeFocusMode();
@@ -960,6 +1110,7 @@ async function init() {
   loadState();
   handleDateReset();
   updateAuthUi();
+  renderMetricsDashboard();
 
   if (!state.timeLeft || !Number.isFinite(state.timeLeft)) {
     state.timeLeft = getDurations()[state.currentMode];
