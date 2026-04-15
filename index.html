@@ -259,7 +259,7 @@
       margin-bottom: 8px;
     }
 
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], input[type="email"], input[type="password"] {
       width: 100%;
       height: 54px;
       border: 1px solid var(--border);
@@ -336,6 +336,19 @@
     .stat-value { font-size: clamp(18px, 1.8vw, 28px); font-weight: 800; letter-spacing: -0.03em; }
     .side-title { font-size: 18px; font-weight: 800; }
     .secondary-metric { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .auth-btn {
+      min-width: 132px;
+      height: 46px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      padding: 0 16px;
+      cursor: pointer;
+    }
+    .auth-status { font-size: 13px; color: var(--muted); line-height: 1.5; }
     .metrics-stack { display: grid; gap: 10px; margin-top: 10px; }
     .metrics-mini {
       border: 1px solid var(--border);
@@ -400,6 +413,9 @@
     .toggle-list { display: grid; gap: 10px; margin-top: 14px; }
     .toggle-item { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; }
     .toggle-item input { transform: scale(1.1); }
+    .auth-grid { display: grid; gap: 12px; margin-top: 16px; }
+    .auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .auth-helper { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
     .focus-overlay {
       position: fixed; inset: 0; z-index: 1200; display: none;
@@ -433,6 +449,7 @@
             <div class="sub">Un temporizador simple, r&aacute;pido y sin fricci&oacute;n.</div>
           </div>
           <div class="top-actions">
+            <button id="authBtn" class="auth-btn" title="Sesion">Ingresar</button>
             <button id="infoBtn" class="icon-btn" title="Informaci&oacute;n">i</button>
             <button id="configBtnTop" class="icon-btn" title="Configuraci&oacute;n">⚙</button>
           </div>
@@ -533,6 +550,23 @@
         <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar autom&aacute;ticamente la siguiente sesi&oacute;n</span></label>
         <label class="toggle-item"><input type="checkbox" id="notificationsEnabled" /> <span>Activar notificaciones del navegador</span></label>
       </div>
+      <div class="auth-grid">
+        <div class="auth-status" id="authStatus">No hay sesi&oacute;n iniciada. Cada persona debe entrar con su correo para ver sus propias m&eacute;tricas.</div>
+        <div>
+          <label class="label" for="authEmail">Email</label>
+          <input type="email" id="authEmail" placeholder="tu@correo.com" />
+        </div>
+        <div>
+          <label class="label" for="authPassword">Contrase&ntilde;a</label>
+          <input type="password" id="authPassword" placeholder="Minimo 6 caracteres" />
+        </div>
+        <div class="auth-actions">
+          <button class="ghost-btn" id="signInBtn">Iniciar sesi&oacute;n</button>
+          <button class="ghost-btn" id="signUpBtn">Crear cuenta</button>
+        </div>
+        <div class="auth-helper">Si el usuario no existe, puede crearse desde aqu&iacute; mismo. Si activaste confirmaci&oacute;n por email en Supabase, tendr&aacute; que validar su correo antes de entrar.</div>
+        <button class="ghost-btn" id="signOutBtn">Cerrar sesi&oacute;n</button>
+      </div>
       <div class="modal-actions">
         <button class="ghost-btn" id="saveConfigBtn" style="width:auto; padding:0 18px;">Guardar</button>
         <button class="ghost-btn" id="closeConfigBtn" style="width:auto; padding:0 18px;">Cerrar</button>
@@ -561,7 +595,7 @@
           <span id="monthMinutesMetric">0 min</span>
         </div>
         <div class="metrics-mini">
-          <strong>Minutos este año</strong>
+          <strong>Minutos este anio</strong>
           <span id="yearMinutesMetric">0 min</span>
         </div>
       </div>

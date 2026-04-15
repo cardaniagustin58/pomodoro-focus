@@ -34,9 +34,16 @@ const els = {
   infoModal: document.getElementById('infoModal'),
   closeInfoBtn: document.getElementById('closeInfoBtn'),
   configBtnTop: document.getElementById('configBtnTop'),
+  authBtn: document.getElementById('authBtn'),
   configModal: document.getElementById('configModal'),
   closeConfigBtn: document.getElementById('closeConfigBtn'),
   saveConfigBtn: document.getElementById('saveConfigBtn'),
+  authStatus: document.getElementById('authStatus'),
+  authEmail: document.getElementById('authEmail'),
+  authPassword: document.getElementById('authPassword'),
+  signInBtn: document.getElementById('signInBtn'),
+  signUpBtn: document.getElementById('signUpBtn'),
+  signOutBtn: document.getElementById('signOutBtn'),
   focusOverlay: document.getElementById('focusOverlay'),
   closeFocusBtn: document.getElementById('closeFocusBtn'),
   focusModeLabel: document.getElementById('focusModeLabel'),
@@ -64,6 +71,8 @@ const state = {
   lastActiveDate: getTodayKey(),
   history: [],
   deviceId: getOrCreateDeviceId(),
+  currentUser: null,
+  authReady: false,
   metrics: {
     todayMinutes: 0,
     weekMinutes: 0,
@@ -153,6 +162,7 @@ function saveState() {
     task: els.taskInput.value,
     history: state.history,
     deviceId: state.deviceId,
+    userId: state.currentUser?.id || null,
     settings: {
       work: els.workInput.value,
       shortBreak: els.shortBreakInput.value,
@@ -202,6 +212,39 @@ function setStatus(text) {
 function setSyncStatus(text, ok = false) {
   els.syncStatus.textContent = text;
   els.syncBadge.classList.toggle('ok', ok);
+}
+
+function isAuthenticated() {
+  return Boolean(state.currentUser?.id);
+}
+
+function getUserLabel() {
+  return state.currentUser?.email || 'Sin sesión';
+}
+
+function syncLocalOwnership() {
+  const storedOwner = localStorage.getItem(`${STORAGE_KEY}-owner`);
+  const currentOwner = state.currentUser?.id || 'guest';
+  if (storedOwner && storedOwner !== currentOwner) {
+    state.localCompletedToday = 0;
+    state.history = [];
+  }
+  localStorage.setItem(`${STORAGE_KEY}-owner`, currentOwner);
+}
+
+function updateAuthUi() {
+  const loggedIn = isAuthenticated();
+  if (els.authBtn) {
+    els.authBtn.textContent = loggedIn ? 'Mi sesión' : 'Ingresar';
+  }
+  if (els.authStatus) {
+    els.authStatus.innerHTML = loggedIn
+      ? `Sesión activa: <strong>${escapeHtml(getUserLabel())}</strong>. Tus métricas y sesiones se guardan con esta cuenta.`
+      : 'No hay sesión iniciada. Cada persona debe entrar con su correo para ver sus propias métricas.';
+  }
+  if (els.signOutBtn) {
+    els.signOutBtn.style.display = loggedIn ? 'block' : 'none';
+  }
 }
 function updateModeButtons() {
   els.modeBtns.forEach((btn) => {
@@ -386,6 +429,25 @@ function computeMetricsFromRows(rows) {
 
   return metrics;
 }
+
+function buildTodayHistory(rows) {
+  const dayStart = startOfDay(new Date());
+  const nextDay = addDays(dayStart, 1);
+
+  return rows
+    .filter((row) => row.mode === 'work')
+    .filter((row) => {
+      const createdAt = new Date(row.created_at);
+      return createdAt >= dayStart && createdAt < nextDay;
+    })
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map((row) => ({
+      task: row.task || 'Sin tarea definida',
+      minutes: Number(row.minutes) || 0,
+      time: new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    }));
+}
+
 async function loadRuntimeSupabaseConfig() {
   const inlineConfig = window.__POMODORO_CONFIG__;
   if (inlineConfig?.url && inlineConfig?.anonKey) {
@@ -432,6 +494,15 @@ async function initSupabase() {
     state.supabaseClient = window.supabase.createClient(config.url, config.anonKey);
     state.supabaseReady = true;
     setSyncStatus('Supabase conectado.', true);
+
+    const { data, error } = await state.supabaseClient.auth.getSession();
+    if (error) {
+      console.error('No se pudo recuperar la sesión:', error);
+    }
+    handleAuthSession(data?.session || null);
+    state.supabaseClient.auth.onAuthStateChange((_event, session) => {
+      handleAuthSession(session);
+    });
   } catch (error) {
     console.error('No se pudo crear el cliente de Supabase:', error);
     state.supabaseClient = null;
@@ -440,8 +511,27 @@ async function initSupabase() {
   }
 }
 
+function handleAuthSession(session) {
+  state.currentUser = session?.user || null;
+  state.authReady = true;
+  syncLocalOwnership();
+  updateAuthUi();
+  if (isAuthenticated()) {
+    setStatus('Sesión iniciada. Tus métricas se sincronizan con tu cuenta.');
+    void refreshMetrics();
+  } else {
+    state.metrics = getLocalFallbackMetrics();
+    renderHistory();
+    updateDisplay();
+  }
+}
+
 async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
   if (!state.supabaseClient) return false;
+  if (!isAuthenticated()) {
+    setStatus('Iniciá sesión para guardar tu trabajo en la nube.');
+    return false;
+  }
 
   try {
     const { error } = await state.supabaseClient
@@ -453,6 +543,8 @@ async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
           mode,
           created_at: createdAt,
           device_id: state.deviceId,
+          user_id: state.currentUser.id,
+          user_label: state.currentUser.email || 'Usuario',
         }
       ]);
 
@@ -472,8 +564,9 @@ async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
 }
 
 async function refreshMetrics() {
-  if (!state.supabaseClient) {
+  if (!state.supabaseClient || !isAuthenticated()) {
     state.metrics = getLocalFallbackMetrics();
+    renderHistory();
     updateDisplay();
     return;
   }
@@ -484,8 +577,8 @@ async function refreshMetrics() {
 
     const { data, error } = await state.supabaseClient
       .from('pomodoro_sessions')
-      .select('minutes, mode, created_at')
-      .eq('device_id', state.deviceId)
+      .select('task, minutes, mode, created_at')
+      .eq('user_id', state.currentUser.id)
       .gte('created_at', yearStart)
       .lt('created_at', nextYearStart)
       .order('created_at', { ascending: false });
@@ -499,6 +592,8 @@ async function refreshMetrics() {
     }
 
     state.metrics = computeMetricsFromRows(data || []);
+    state.history = buildTodayHistory(data || []);
+    renderHistory();
     setSyncStatus('Métricas sincronizadas.', true);
   } catch (error) {
     console.error('Error inesperado consultando métricas:', error);
@@ -668,6 +763,57 @@ function handleDateReset() {
   }
 }
 
+async function signUpWithEmail() {
+  if (!state.supabaseClient) return;
+
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+  if (!email || !password) {
+    setStatus('Completá email y contraseña para crear la cuenta.');
+    return;
+  }
+
+  const { error } = await state.supabaseClient.auth.signUp({ email, password });
+  if (error) {
+    setStatus(`No se pudo crear la cuenta: ${error.message}`);
+    return;
+  }
+
+  setStatus('Cuenta creada. Revisá tu correo si Supabase te pide confirmación.');
+}
+
+async function signInWithEmail() {
+  if (!state.supabaseClient) return;
+
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+  if (!email || !password) {
+    setStatus('Completá email y contraseña para iniciar sesión.');
+    return;
+  }
+
+  const { error } = await state.supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    setStatus(`No se pudo iniciar sesión: ${error.message}`);
+    return;
+  }
+
+  els.authPassword.value = '';
+  closeConfig();
+}
+
+async function signOutCurrentUser() {
+  if (!state.supabaseClient) return;
+
+  const { error } = await state.supabaseClient.auth.signOut();
+  if (error) {
+    setStatus(`No se pudo cerrar la sesión: ${error.message}`);
+    return;
+  }
+
+  setStatus('Sesión cerrada.');
+}
+
 function openInfo() { els.infoModal.classList.add('open'); }
 function closeInfo() { els.infoModal.classList.remove('open'); }
 function openConfig() { els.configModal.classList.add('open'); }
@@ -723,6 +869,7 @@ bind(els.infoModal, 'click', (e) => {
 });
 
 bind(els.configBtnTop, 'click', openConfig);
+bind(els.authBtn, 'click', openConfig);
 bind(els.closeConfigBtn, 'click', closeConfig);
 bind(els.saveConfigBtn, 'click', () => {
   setMode(state.currentMode, true);
@@ -730,6 +877,9 @@ bind(els.saveConfigBtn, 'click', () => {
   setStatus('Configuración guardada.');
   closeConfig();
 });
+bind(els.signInBtn, 'click', signInWithEmail);
+bind(els.signUpBtn, 'click', signUpWithEmail);
+bind(els.signOutBtn, 'click', signOutCurrentUser);
 bind(els.configModal, 'click', (e) => {
   if (e.target === els.configModal) closeConfig();
 });
@@ -756,6 +906,7 @@ document.addEventListener('visibilitychange', () => {
 async function init() {
   loadState();
   handleDateReset();
+  updateAuthUi();
 
   if (!state.timeLeft || !Number.isFinite(state.timeLeft)) {
     state.timeLeft = getDurations()[state.currentMode];
