@@ -49,7 +49,11 @@ const els = {
   metricsSummaryMinutes: document.getElementById('metricsSummaryMinutes'),
   metricsSummaryPomodoros: document.getElementById('metricsSummaryPomodoros'),
   metricsSummaryTasks: document.getElementById('metricsSummaryTasks'),
+  metricsSummaryProjects: document.getElementById('metricsSummaryProjects'),
+  metricsSummaryTopProject: document.getElementById('metricsSummaryTopProject'),
   metricsSummaryTopTask: document.getElementById('metricsSummaryTopTask'),
+  metricsProjectChart: document.getElementById('metricsProjectChart'),
+  metricsDayChart: document.getElementById('metricsDayChart'),
   metricsResultsCount: document.getElementById('metricsResultsCount'),
   metricsSessionList: document.getElementById('metricsSessionList'),
   authStatus: document.getElementById('authStatus'),
@@ -365,9 +369,76 @@ function computeMetricsSummary(rows) {
     totalMinutes,
     pomodoros: rows.length,
     distinctTasks: taskTotals.size,
+    distinctProjects: projectTotals.size,
     topTask,
     topProject: [...projectTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '-',
   };
+}
+
+function aggregateByProject(rows) {
+  const totals = new Map();
+  rows.forEach((row) => {
+    const project = normalizeProject(row.project_name);
+    totals.set(project, (totals.get(project) || 0) + (Number(row.minutes) || 0));
+  });
+
+  return [...totals.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+}
+
+function aggregateByDay(rows) {
+  const totals = new Map();
+  rows.forEach((row) => {
+    const createdAt = new Date(row.created_at);
+    const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}-${String(createdAt.getDate()).padStart(2, '0')}`;
+    totals.set(key, (totals.get(key) || 0) + (Number(row.minutes) || 0));
+  });
+
+  return [...totals.entries()]
+    .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+    .slice(-8)
+    .map(([key, value]) => ({
+      label: new Date(`${key}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }),
+      value,
+    }));
+}
+
+function renderBarChart(container, items, tone = 'project') {
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'metrics-empty';
+    empty.textContent = 'Todavía no hay datos suficientes para mostrar este gráfico.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    const width = `${Math.max(8, (item.value / maxValue) * 100)}%`;
+    row.innerHTML = `
+      <div class="bar-meta">
+        <strong title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</strong>
+        <span>${formatMinutesLabel(item.value)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill ${tone}" style="width:${width};"></div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function updateMetricsFilterUi() {
+  const isCustom = state.metricsFilters.range === 'custom';
+  if (els.metricsStartDate) els.metricsStartDate.disabled = !isCustom;
+  if (els.metricsEndDate) els.metricsEndDate.disabled = !isCustom;
 }
 
 function renderMetricsDashboard() {
@@ -375,14 +446,21 @@ function renderMetricsDashboard() {
 
   const filteredRows = filterRows(state.sessionRows, state.metricsFilters);
   const summary = computeMetricsSummary(filteredRows);
+  const projectChartData = aggregateByProject(filteredRows);
+  const dayChartData = aggregateByDay(filteredRows);
 
   if (els.metricsSummaryMinutes) els.metricsSummaryMinutes.textContent = formatMinutesLabel(summary.totalMinutes);
   if (els.metricsSummaryPomodoros) els.metricsSummaryPomodoros.textContent = String(summary.pomodoros);
   if (els.metricsSummaryTasks) els.metricsSummaryTasks.textContent = String(summary.distinctTasks);
+  if (els.metricsSummaryProjects) els.metricsSummaryProjects.textContent = String(summary.distinctProjects);
+  if (els.metricsSummaryTopProject) els.metricsSummaryTopProject.textContent = summary.topProject;
   if (els.metricsSummaryTopTask) els.metricsSummaryTopTask.textContent = summary.topTask;
   if (els.metricsResultsCount) {
     els.metricsResultsCount.textContent = `${filteredRows.length} ${filteredRows.length === 1 ? 'resultado' : 'resultados'}`;
   }
+
+  renderBarChart(els.metricsProjectChart, projectChartData, 'project');
+  renderBarChart(els.metricsDayChart, dayChartData, 'day');
 
   els.metricsSessionList.innerHTML = '';
   if (!filteredRows.length) {
@@ -1016,7 +1094,7 @@ function openSession() { els.sessionModal.classList.add('open'); }
 function closeSession() { els.sessionModal.classList.remove('open'); }
 function openConfig() { els.configModal.classList.add('open'); }
 function closeConfig() { els.configModal.classList.remove('open'); }
-function openMetrics() { els.metricsModal.classList.add('open'); renderMetricsDashboard(); }
+function openMetrics() { els.metricsModal.classList.add('open'); updateMetricsFilterUi(); renderMetricsDashboard(); }
 function closeMetrics() { els.metricsModal.classList.remove('open'); }
 function openFocusMode() { els.focusOverlay.classList.add('open'); updateDisplay(); }
 function closeFocusMode() { els.focusOverlay.classList.remove('open'); }
@@ -1101,6 +1179,7 @@ bind(els.metricsTaskFilter, 'input', () => {
 });
 bind(els.metricsRangeFilter, 'change', () => {
   state.metricsFilters.range = els.metricsRangeFilter.value;
+  updateMetricsFilterUi();
   renderMetricsDashboard();
 });
 bind(els.metricsStartDate, 'change', () => {
@@ -1140,6 +1219,7 @@ async function init() {
   loadState();
   handleDateReset();
   updateAuthUi();
+  updateMetricsFilterUi();
   renderMetricsDashboard();
 
   if (!state.timeLeft || !Number.isFinite(state.timeLeft)) {

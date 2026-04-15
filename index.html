@@ -445,7 +445,7 @@
     }
     .metrics-summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
       margin-top: 16px;
     }
@@ -526,6 +526,57 @@
       font-size: 14px;
       text-align: center;
     }
+    .metrics-visual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .bar-list {
+      display: grid;
+      gap: 12px;
+    }
+    .bar-row {
+      display: grid;
+      gap: 8px;
+    }
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .bar-meta strong {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bar-meta span {
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #8b5cf6, #38bdf8);
+    }
+    .bar-fill.project {
+      background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+    }
+    .bar-fill.day {
+      background: linear-gradient(90deg, #38bdf8, #22c55e);
+    }
 
     .focus-overlay {
       position: fixed; inset: 0; z-index: 1200; display: none;
@@ -546,7 +597,7 @@
 
     @media (max-width: 1280px) { .app-grid { grid-template-columns: 1.08fr .92fr; } .main-content { grid-template-columns: minmax(280px, 360px) 1fr; } }
     @media (max-width: 1080px) { html, body { overflow: auto; } .app-shell { height: auto; min-height: calc(100vh - 28px); } .app-grid { grid-template-columns: 1fr; height: auto; } }
-    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } .metrics-filters { grid-template-columns: 1fr; } .metrics-summary-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 760px) { .main-content { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr; } .settings-grid { grid-template-columns: 1fr; } .metrics-filters { grid-template-columns: 1fr; } .metrics-summary-grid { grid-template-columns: 1fr 1fr; } .metrics-visual-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -727,8 +778,8 @@
           <input type="text" id="metricsProjectFilter" placeholder="Ej: Cliente X" />
         </div>
         <div>
-          <label class="label" for="metricsTaskFilter">Proyecto o tarea</label>
-          <input type="text" id="metricsTaskFilter" placeholder="Ej: landing, cliente X, diseño" />
+          <label class="label" for="metricsTaskFilter">Tarea</label>
+          <input type="text" id="metricsTaskFilter" placeholder="Ej: landing, diseño, revisión" />
         </div>
         <div>
           <label class="label" for="metricsRangeFilter">Período</label>
@@ -764,8 +815,32 @@
           <span id="metricsSummaryTasks">0</span>
         </div>
         <div class="metrics-summary-card">
+          <strong>Proyectos distintos</strong>
+          <span id="metricsSummaryProjects">0</span>
+        </div>
+        <div class="metrics-summary-card">
+          <strong>Proyecto principal</strong>
+          <span id="metricsSummaryTopProject" style="font-size:20px;">-</span>
+        </div>
+        <div class="metrics-summary-card">
           <strong>Tarea principal</strong>
           <span id="metricsSummaryTopTask" style="font-size:20px;">-</span>
+        </div>
+      </div>
+      <div class="metrics-visual-grid">
+        <div class="metrics-panel">
+          <div class="metrics-panel-head">
+            <h4>Minutos por proyecto</h4>
+            <div class="metrics-panel-note">Top proyectos dentro del filtro actual</div>
+          </div>
+          <div class="bar-list" id="metricsProjectChart"></div>
+        </div>
+        <div class="metrics-panel">
+          <div class="metrics-panel-head">
+            <h4>Minutos por día</h4>
+            <div class="metrics-panel-note">Evolución diaria del período filtrado</div>
+          </div>
+          <div class="bar-list" id="metricsDayChart"></div>
         </div>
       </div>
       <div class="metrics-panel">
