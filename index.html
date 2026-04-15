@@ -443,6 +443,15 @@
       gap: 12px;
       margin-top: 14px;
     }
+    .metrics-date-row {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .metrics-date-row.open {
+      display: grid;
+    }
     .metrics-summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -507,7 +516,7 @@
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      align-items: center;
+      align-items: flex-start;
     }
     .metrics-session-item strong {
       display: block;
@@ -517,6 +526,12 @@
     .metrics-session-item span {
       color: var(--muted);
       font-size: 13px;
+    }
+    .metrics-session-task {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
     }
     .metrics-empty {
       border: 1px dashed var(--border);
@@ -576,6 +591,12 @@
     }
     .bar-fill.day {
       background: linear-gradient(90deg, #38bdf8, #22c55e);
+    }
+    .bar-fill.task {
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+    }
+    .bar-fill.month {
+      background: linear-gradient(90deg, #22c55e, #38bdf8);
     }
 
     .focus-overlay {
@@ -775,11 +796,15 @@
       <div class="metrics-filters" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
         <div>
           <label class="label" for="metricsProjectFilter">Proyecto / empresa</label>
-          <input type="text" id="metricsProjectFilter" placeholder="Ej: Cliente X" />
+          <select id="metricsProjectFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+            <option value="">Todos los proyectos</option>
+          </select>
         </div>
         <div>
           <label class="label" for="metricsTaskFilter">Tarea</label>
-          <input type="text" id="metricsTaskFilter" placeholder="Ej: landing, diseño, revisión" />
+          <select id="metricsTaskFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+            <option value="">Todas las tareas</option>
+          </select>
         </div>
         <div>
           <label class="label" for="metricsRangeFilter">Período</label>
@@ -792,6 +817,12 @@
             <option value="custom">Rango personalizado</option>
           </select>
         </div>
+        <div>
+          <label class="label">&nbsp;</label>
+          <div class="auth-helper" style="padding:16px 0 0;">Elegí filtros existentes para evitar cruces inconsistentes.</div>
+        </div>
+      </div>
+      <div class="metrics-date-row" id="metricsDateRow">
         <div>
           <label class="label" for="metricsStartDate">Desde</label>
           <input type="date" id="metricsStartDate" />
@@ -841,6 +872,22 @@
             <div class="metrics-panel-note">Evolución diaria del período filtrado</div>
           </div>
           <div class="bar-list" id="metricsDayChart"></div>
+        </div>
+      </div>
+      <div class="metrics-visual-grid">
+        <div class="metrics-panel">
+          <div class="metrics-panel-head">
+            <h4>Minutos por tarea</h4>
+            <div class="metrics-panel-note">Qué actividades te consumieron más tiempo</div>
+          </div>
+          <div class="bar-list" id="metricsTaskChart"></div>
+        </div>
+        <div class="metrics-panel">
+          <div class="metrics-panel-head">
+            <h4>Minutos por mes</h4>
+            <div class="metrics-panel-note">Vista acumulada para detectar tendencias</div>
+          </div>
+          <div class="bar-list" id="metricsMonthChart"></div>
         </div>
       </div>
       <div class="metrics-panel">

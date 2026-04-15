@@ -44,6 +44,7 @@ const els = {
   metricsProjectFilter: document.getElementById('metricsProjectFilter'),
   metricsTaskFilter: document.getElementById('metricsTaskFilter'),
   metricsRangeFilter: document.getElementById('metricsRangeFilter'),
+  metricsDateRow: document.getElementById('metricsDateRow'),
   metricsStartDate: document.getElementById('metricsStartDate'),
   metricsEndDate: document.getElementById('metricsEndDate'),
   metricsSummaryMinutes: document.getElementById('metricsSummaryMinutes'),
@@ -54,6 +55,8 @@ const els = {
   metricsSummaryTopTask: document.getElementById('metricsSummaryTopTask'),
   metricsProjectChart: document.getElementById('metricsProjectChart'),
   metricsDayChart: document.getElementById('metricsDayChart'),
+  metricsTaskChart: document.getElementById('metricsTaskChart'),
+  metricsMonthChart: document.getElementById('metricsMonthChart'),
   metricsResultsCount: document.getElementById('metricsResultsCount'),
   metricsSessionList: document.getElementById('metricsSessionList'),
   authStatus: document.getElementById('authStatus'),
@@ -405,6 +408,83 @@ function aggregateByDay(rows) {
     }));
 }
 
+function aggregateByTask(rows) {
+  const totals = new Map();
+  rows.forEach((row) => {
+    const task = normalizeTask(row.task);
+    totals.set(task, (totals.get(task) || 0) + (Number(row.minutes) || 0));
+  });
+
+  return [...totals.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+}
+
+function aggregateByMonth(rows) {
+  const totals = new Map();
+  rows.forEach((row) => {
+    const createdAt = new Date(row.created_at);
+    const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
+    totals.set(key, (totals.get(key) || 0) + (Number(row.minutes) || 0));
+  });
+
+  return [...totals.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-6)
+    .map(([key, value]) => {
+      const [year, month] = key.split('-');
+      return {
+        label: `${month}/${year.slice(2)}`,
+        value,
+      };
+    });
+}
+
+function uniqueSortedLabels(rows, field, normalizer) {
+  return [...new Set(rows.map((row) => normalizer(row[field])).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+function populateSelectOptions(select, options, placeholder) {
+  if (!select) return;
+  const currentValue = select.value;
+  select.innerHTML = '';
+
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = placeholder;
+  select.appendChild(defaultOption);
+
+  options.forEach((optionValue) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = optionValue;
+    select.appendChild(option);
+  });
+
+  if (options.includes(currentValue)) {
+    select.value = currentValue;
+  } else {
+    select.value = '';
+  }
+}
+
+function syncMetricsSelects() {
+  const baseRows = state.sessionRows.filter((row) => row.mode === 'work');
+  const projectOptions = uniqueSortedLabels(baseRows, 'project_name', normalizeProject);
+  populateSelectOptions(els.metricsProjectFilter, projectOptions, 'Todos los proyectos');
+
+  const rowsForTasks = state.metricsFilters.project
+    ? baseRows.filter((row) => normalizeProject(row.project_name) === state.metricsFilters.project)
+    : baseRows;
+  const taskOptions = uniqueSortedLabels(rowsForTasks, 'task', normalizeTask);
+  populateSelectOptions(els.metricsTaskFilter, taskOptions, 'Todas las tareas');
+
+  state.metricsFilters.project = els.metricsProjectFilter?.value || '';
+  state.metricsFilters.task = els.metricsTaskFilter?.value || '';
+}
+
 function renderBarChart(container, items, tone = 'project') {
   if (!container) return;
 
@@ -437,6 +517,9 @@ function renderBarChart(container, items, tone = 'project') {
 
 function updateMetricsFilterUi() {
   const isCustom = state.metricsFilters.range === 'custom';
+  if (els.metricsDateRow) {
+    els.metricsDateRow.classList.toggle('open', isCustom);
+  }
   if (els.metricsStartDate) els.metricsStartDate.disabled = !isCustom;
   if (els.metricsEndDate) els.metricsEndDate.disabled = !isCustom;
 }
@@ -444,10 +527,13 @@ function updateMetricsFilterUi() {
 function renderMetricsDashboard() {
   if (!els.metricsSessionList) return;
 
+  syncMetricsSelects();
   const filteredRows = filterRows(state.sessionRows, state.metricsFilters);
   const summary = computeMetricsSummary(filteredRows);
   const projectChartData = aggregateByProject(filteredRows);
   const dayChartData = aggregateByDay(filteredRows);
+  const taskChartData = aggregateByTask(filteredRows);
+  const monthChartData = aggregateByMonth(filteredRows);
 
   if (els.metricsSummaryMinutes) els.metricsSummaryMinutes.textContent = formatMinutesLabel(summary.totalMinutes);
   if (els.metricsSummaryPomodoros) els.metricsSummaryPomodoros.textContent = String(summary.pomodoros);
@@ -461,6 +547,8 @@ function renderMetricsDashboard() {
 
   renderBarChart(els.metricsProjectChart, projectChartData, 'project');
   renderBarChart(els.metricsDayChart, dayChartData, 'day');
+  renderBarChart(els.metricsTaskChart, taskChartData, 'task');
+  renderBarChart(els.metricsMonthChart, monthChartData, 'month');
 
   els.metricsSessionList.innerHTML = '';
   if (!filteredRows.length) {
@@ -480,7 +568,8 @@ function renderMetricsDashboard() {
       item.innerHTML = `
         <div>
           <strong>${escapeHtml(normalizeProject(row.project_name))}</strong>
-          <span>${escapeHtml(normalizeTask(row.task))} · ${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+          <div class="metrics-session-task">${escapeHtml(normalizeTask(row.task))}</div>
+          <span>${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         <strong>${Number(row.minutes) || 0} min</strong>
       `;
@@ -1169,11 +1258,12 @@ bind(els.saveConfigBtn, 'click', () => {
 bind(els.signInBtn, 'click', signInWithEmail);
 bind(els.signUpBtn, 'click', signUpWithEmail);
 bind(els.signOutBtn, 'click', signOutCurrentUser);
-bind(els.metricsProjectFilter, 'input', () => {
+bind(els.metricsProjectFilter, 'change', () => {
   state.metricsFilters.project = els.metricsProjectFilter.value;
+  state.metricsFilters.task = '';
   renderMetricsDashboard();
 });
-bind(els.metricsTaskFilter, 'input', () => {
+bind(els.metricsTaskFilter, 'change', () => {
   state.metricsFilters.task = els.metricsTaskFilter.value;
   renderMetricsDashboard();
 });
