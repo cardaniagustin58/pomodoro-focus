@@ -35,6 +35,8 @@ const els = {
   closeInfoBtn: document.getElementById('closeInfoBtn'),
   configBtnTop: document.getElementById('configBtnTop'),
   authBtn: document.getElementById('authBtn'),
+  sessionModal: document.getElementById('sessionModal'),
+  closeSessionBtn: document.getElementById('closeSessionBtn'),
   configModal: document.getElementById('configModal'),
   closeConfigBtn: document.getElementById('closeConfigBtn'),
   saveConfigBtn: document.getElementById('saveConfigBtn'),
@@ -841,7 +843,7 @@ async function signInWithEmail() {
 
   els.authPassword.value = '';
   setAuthMessage('Sesión iniciada correctamente.', 'success');
-  closeConfig();
+  closeSession();
 }
 
 async function signOutCurrentUser() {
@@ -860,6 +862,8 @@ async function signOutCurrentUser() {
 
 function openInfo() { els.infoModal.classList.add('open'); }
 function closeInfo() { els.infoModal.classList.remove('open'); }
+function openSession() { els.sessionModal.classList.add('open'); }
+function closeSession() { els.sessionModal.classList.remove('open'); }
 function openConfig() { els.configModal.classList.add('open'); }
 function closeConfig() { els.configModal.classList.remove('open'); }
 function openFocusMode() { els.focusOverlay.classList.add('open'); updateDisplay(); }
@@ -913,7 +917,11 @@ bind(els.infoModal, 'click', (e) => {
 });
 
 bind(els.configBtnTop, 'click', openConfig);
-bind(els.authBtn, 'click', openConfig);
+bind(els.authBtn, 'click', openSession);
+bind(els.closeSessionBtn, 'click', closeSession);
+bind(els.sessionModal, 'click', (e) => {
+  if (e.target === els.sessionModal) closeSession();
+});
 bind(els.closeConfigBtn, 'click', closeConfig);
 bind(els.saveConfigBtn, 'click', () => {
   setMode(state.currentMode, true);
@@ -934,6 +942,7 @@ bind(els.closeFocusBtn, 'click', closeFocusMode);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeInfo();
+    closeSession();
     closeConfig();
     closeFocusMode();
   }

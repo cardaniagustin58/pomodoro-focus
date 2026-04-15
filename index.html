@@ -545,19 +545,9 @@
     <span id="syncStatus"></span>
   </div>
 
-  <div class="modal" id="configModal">
+  <div class="modal" id="sessionModal">
     <div class="modal-card">
-      <h3>Configuraci&oacute;n</h3>
-      <div class="settings-grid">
-        <div><label class="label" for="workInput">Trabajo (min)</label><input type="number" id="workInput" min="1" value="25" /></div>
-        <div><label class="label" for="shortBreakInput">Descanso corto (min)</label><input type="number" id="shortBreakInput" min="1" value="5" /></div>
-        <div><label class="label" for="longBreakInput">Descanso largo (min)</label><input type="number" id="longBreakInput" min="1" value="15" /></div>
-        <div><label class="label" for="longBreakEveryInput">Descanso largo cada</label><input type="number" id="longBreakEveryInput" min="1" value="4" /></div>
-      </div>
-      <div class="toggle-list">
-        <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar autom&aacute;ticamente la siguiente sesi&oacute;n</span></label>
-        <label class="toggle-item"><input type="checkbox" id="notificationsEnabled" /> <span>Activar notificaciones del navegador</span></label>
-      </div>
+      <h3>Mi sesi&oacute;n</h3>
       <div class="auth-grid">
         <div class="auth-status" id="authStatus">No hay sesi&oacute;n iniciada. Cada persona debe entrar con su correo para ver sus propias m&eacute;tricas.</div>
         <div>
@@ -579,6 +569,25 @@
         <div class="auth-message" id="authMessage"></div>
         <div class="auth-helper">Si el usuario no existe, puede crearse desde aqu&iacute; mismo. Si activaste confirmaci&oacute;n por email en Supabase, tendr&aacute; que validar su correo antes de entrar.</div>
         <button class="ghost-btn" id="signOutBtn">Cerrar sesi&oacute;n</button>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="closeSessionBtn" style="width:auto; padding:0 18px;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="configModal">
+    <div class="modal-card">
+      <h3>Configuraci&oacute;n</h3>
+      <div class="settings-grid">
+        <div><label class="label" for="workInput">Trabajo (min)</label><input type="number" id="workInput" min="1" value="25" /></div>
+        <div><label class="label" for="shortBreakInput">Descanso corto (min)</label><input type="number" id="shortBreakInput" min="1" value="5" /></div>
+        <div><label class="label" for="longBreakInput">Descanso largo (min)</label><input type="number" id="longBreakInput" min="1" value="15" /></div>
+        <div><label class="label" for="longBreakEveryInput">Descanso largo cada</label><input type="number" id="longBreakEveryInput" min="1" value="4" /></div>
+      </div>
+      <div class="toggle-list">
+        <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar autom&aacute;ticamente la siguiente sesi&oacute;n</span></label>
+        <label class="toggle-item"><input type="checkbox" id="notificationsEnabled" /> <span>Activar notificaciones del navegador</span></label>
       </div>
       <div class="modal-actions">
         <button class="ghost-btn" id="saveConfigBtn" style="width:auto; padding:0 18px;">Guardar</button>
