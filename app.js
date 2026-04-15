@@ -9,6 +9,7 @@ const els = {
   centerNote: document.getElementById('centerNote'),
   timer: document.getElementById('timer'),
   progressRing: document.getElementById('progressRing'),
+  projectInput: document.getElementById('projectInput'),
   taskInput: document.getElementById('taskInput'),
   progressText: document.getElementById('progressText'),
   startBtn: document.getElementById('startBtn'),
@@ -40,6 +41,7 @@ const els = {
   saveConfigBtn: document.getElementById('saveConfigBtn'),
   metricsModal: document.getElementById('metricsModal'),
   closeMetricsBtn: document.getElementById('closeMetricsBtn'),
+  metricsProjectFilter: document.getElementById('metricsProjectFilter'),
   metricsTaskFilter: document.getElementById('metricsTaskFilter'),
   metricsRangeFilter: document.getElementById('metricsRangeFilter'),
   metricsStartDate: document.getElementById('metricsStartDate'),
@@ -97,6 +99,7 @@ const state = {
   },
   metricsFilters: {
     range: 'today',
+    project: '',
     task: '',
     startDate: '',
     endDate: '',
@@ -180,6 +183,7 @@ function saveState() {
     localCompletedToday: state.localCompletedToday,
     cyclesCompleted: state.cyclesCompleted,
     lastActiveDate: state.lastActiveDate,
+    project: els.projectInput.value,
     task: els.taskInput.value,
     history: state.history,
     deviceId: state.deviceId,
@@ -214,6 +218,7 @@ function loadState() {
     state.history = state.lastActiveDate === today && Array.isArray(data.history) ? data.history : [];
     state.deviceId = data.deviceId || state.deviceId;
 
+    els.projectInput.value = data.project || 'General';
     els.taskInput.value = data.task || '';
     els.workInput.value = data.settings?.work || 25;
     els.shortBreakInput.value = data.settings?.shortBreak || 5;
@@ -287,6 +292,10 @@ function normalizeTask(task) {
   return (task || 'Sin tarea definida').trim();
 }
 
+function normalizeProject(projectName) {
+  return (projectName || 'General').trim();
+}
+
 function sameOrAfterDay(date, yyyyMmDd) {
   return new Date(`${yyyyMmDd}T00:00:00`) <= date;
 }
@@ -308,8 +317,13 @@ function filterRows(rows, filters) {
 
     const createdAt = new Date(row.created_at);
     const task = normalizeTask(row.task).toLowerCase();
+    const project = normalizeProject(row.project_name).toLowerCase();
+    const projectNeedle = (filters.project || '').trim().toLowerCase();
 
     if (taskNeedle && !task.includes(taskNeedle)) {
+      return false;
+    }
+    if (projectNeedle && !project.includes(projectNeedle)) {
       return false;
     }
 
@@ -330,9 +344,12 @@ function filterRows(rows, filters) {
 function computeMetricsSummary(rows) {
   const totalMinutes = rows.reduce((acc, row) => acc + (Number(row.minutes) || 0), 0);
   const taskTotals = new Map();
+  const projectTotals = new Map();
   rows.forEach((row) => {
     const task = normalizeTask(row.task);
+    const project = normalizeProject(row.project_name);
     taskTotals.set(task, (taskTotals.get(task) || 0) + (Number(row.minutes) || 0));
+    projectTotals.set(project, (projectTotals.get(project) || 0) + (Number(row.minutes) || 0));
   });
 
   let topTask = '-';
@@ -349,6 +366,7 @@ function computeMetricsSummary(rows) {
     pomodoros: rows.length,
     distinctTasks: taskTotals.size,
     topTask,
+    topProject: [...projectTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '-',
   };
 }
 
@@ -383,8 +401,8 @@ function renderMetricsDashboard() {
       item.className = 'metrics-session-item';
       item.innerHTML = `
         <div>
-          <strong>${escapeHtml(normalizeTask(row.task))}</strong>
-          <span>${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+          <strong>${escapeHtml(normalizeProject(row.project_name))}</strong>
+          <span>${escapeHtml(normalizeTask(row.task))} · ${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         <strong>${Number(row.minutes) || 0} min</strong>
       `;
@@ -584,6 +602,7 @@ function buildTodayHistory(rows) {
     })
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .map((row) => ({
+      project_name: row.project_name || 'General',
       task: row.task || 'Sin tarea definida',
       minutes: Number(row.minutes) || 0,
       time: new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
@@ -670,7 +689,7 @@ function handleAuthSession(session) {
   }
 }
 
-async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
+async function saveSessionToSupabase({ task, project_name, minutes, mode, createdAt }) {
   if (!state.supabaseClient) return false;
   if (!isAuthenticated()) {
     setStatus('Iniciá sesión para guardar tu trabajo en la nube.');
@@ -683,6 +702,7 @@ async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
       .insert([
         {
           task,
+          project_name: normalizeProject(project_name),
           minutes,
           mode,
           created_at: createdAt,
@@ -719,7 +739,7 @@ async function refreshMetrics() {
   try {
     const { data, error } = await state.supabaseClient
       .from('pomodoro_sessions')
-      .select('task, minutes, mode, created_at')
+      .select('task, project_name, minutes, mode, created_at')
       .eq('user_id', state.currentUser.id)
       .order('created_at', { ascending: false });
 
@@ -764,10 +784,12 @@ function renderHistory() {
     const entry = document.createElement('div');
     entry.className = 'task-item';
     const safeTask = escapeHtml(item.task || 'Sin tarea');
+    const safeProject = escapeHtml(item.project_name || 'General');
     const safeTime = escapeHtml(item.time || '');
     entry.innerHTML = `
       <span style="display:flex; flex-direction:column; gap:2px; white-space:normal;">
-        <strong style="font-size:13px; font-weight:800; color:var(--text);">${safeTask}</strong>
+        <strong style="font-size:13px; font-weight:800; color:var(--text);">${safeProject}</strong>
+        <span style="font-size:13px; color:var(--text);">${safeTask}</span>
         <span style="font-size:12px; color:var(--muted);">${item.minutes} min · ${safeTime}</span>
       </span>
     `;
@@ -854,11 +876,13 @@ function finishSession(countAsCompleted) {
     state.cyclesCompleted += 1;
 
     const completedTask = els.taskInput.value.trim() || 'Sin tarea definida';
+    const completedProject = normalizeProject(els.projectInput.value);
     const completedMinutes = Math.round((state.sessionTotal || durations.work) / 60);
     const completedAt = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     const sessionCreatedAt = new Date().toISOString();
 
     state.history.push({
+      project_name: completedProject,
       task: completedTask,
       minutes: completedMinutes,
       time: completedAt,
@@ -867,6 +891,7 @@ function finishSession(countAsCompleted) {
 
     void persistCompletedWorkSession({
       task: completedTask,
+      project_name: completedProject,
       minutes: completedMinutes,
       mode: 'work',
       createdAt: sessionCreatedAt,
@@ -1028,6 +1053,7 @@ els.modeBtns.forEach((btn) => {
   });
 });
 
+bind(els.projectInput, 'input', updateDisplay);
 bind(els.taskInput, 'input', updateDisplay);
 
 bind(els.notificationsEnabled, 'change', async () => {
@@ -1065,6 +1091,10 @@ bind(els.saveConfigBtn, 'click', () => {
 bind(els.signInBtn, 'click', signInWithEmail);
 bind(els.signUpBtn, 'click', signUpWithEmail);
 bind(els.signOutBtn, 'click', signOutCurrentUser);
+bind(els.metricsProjectFilter, 'input', () => {
+  state.metricsFilters.project = els.metricsProjectFilter.value;
+  renderMetricsDashboard();
+});
 bind(els.metricsTaskFilter, 'input', () => {
   state.metricsFilters.task = els.metricsTaskFilter.value;
   renderMetricsDashboard();

@@ -591,6 +591,8 @@
             </div>
 
             <div class="panel-box">
+              <label class="label" for="projectInput">Proyecto / empresa</label>
+              <input id="projectInput" type="text" placeholder="Ej: Cliente X, Marca Y, Proyecto interno" style="margin-bottom:12px;" />
               <label class="label" for="taskInput">Tarea actual</label>
               <input id="taskInput" type="text" placeholder="Ej: redactar landing, estudiar ingl&eacute;s, revisar CMS" />
             </div>
@@ -719,7 +721,11 @@
     <div class="modal-card metrics-modal-card">
       <h3>Métricas y filtros</h3>
       <p class="auth-helper">Consultá tus sesiones por período, rango de fechas o nombre de proyecto/tarea. Todo se calcula con la cuenta actualmente iniciada.</p>
-      <div class="metrics-filters">
+      <div class="metrics-filters" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+        <div>
+          <label class="label" for="metricsProjectFilter">Proyecto / empresa</label>
+          <input type="text" id="metricsProjectFilter" placeholder="Ej: Cliente X" />
+        </div>
         <div>
           <label class="label" for="metricsTaskFilter">Proyecto o tarea</label>
           <input type="text" id="metricsTaskFilter" placeholder="Ej: landing, cliente X, diseño" />
