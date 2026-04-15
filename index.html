@@ -272,6 +272,24 @@
     }
 
     input::placeholder { color: #727b8c; }
+    .app-select {
+      width: 100%;
+      height: 54px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 0 16px;
+      font-size: 16px;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+    .app-select option {
+      color: #10182f;
+      background: #eef2ff;
+    }
 
     .progress-text {
       font-size: 14px;
@@ -636,9 +654,23 @@
       .side-card { padding: 16px; }
     }
 
+    @media (max-width: 1280px) and (max-height: 900px) {
+      .top-actions { gap: 8px; }
+      .auth-btn, .metric-btn { min-width: 114px; padding: 0 12px; }
+      .icon-btn { width: 44px; height: 44px; }
+      .timer-panel { height: 270px; }
+      .time-display { font-size: clamp(44px, 4.5vw, 68px); }
+      .right-col { gap: 10px; }
+      .panel-box { padding: 12px; }
+      .action-btn { height: 56px; font-size: 16px; }
+      .tasks-list { gap: 6px; }
+      .task-item { padding: 9px 11px; }
+    }
+
     @media (max-width: 1080px) {
       .app-grid { grid-template-columns: 1fr; min-height: auto; }
       .app-shell { min-height: calc(100vh - 28px); }
+      .side-card { min-height: 520px; }
     }
 
     @media (max-width: 760px) {
@@ -653,6 +685,22 @@
       .metrics-visual-grid { grid-template-columns: 1fr; }
       .modal { padding: 12px; }
       .modal-card { padding: 18px; }
+      .auth-btn, .metric-btn { min-width: 0; flex: 1 1 140px; }
+      .icon-btn { flex: 0 0 46px; }
+      .timer-panel { height: 250px; }
+      .time-display { font-size: clamp(42px, 16vw, 64px); }
+    }
+
+    @media (max-width: 520px) {
+      body { padding: 8px; }
+      .app-shell { padding: 10px; border-radius: 22px; }
+      .main-card, .side-card { padding: 14px; }
+      h1 { font-size: 44px; }
+      .sub { font-size: 15px; }
+      .controls-grid { grid-template-columns: 1fr; }
+      .stats-row, .metrics-summary-grid { grid-template-columns: 1fr; }
+      .task-item, .metrics-session-item { border-radius: 14px; }
+      .side-card { min-height: 440px; }
     }
   </style>
 </head>
@@ -831,19 +879,19 @@
       <div class="metrics-filters" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
         <div>
           <label class="label" for="metricsProjectFilter">Proyecto / empresa</label>
-          <select id="metricsProjectFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+          <select id="metricsProjectFilter" class="app-select">
             <option value="">Todos los proyectos</option>
           </select>
         </div>
         <div>
           <label class="label" for="metricsTaskFilter">Tarea</label>
-          <select id="metricsTaskFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+          <select id="metricsTaskFilter" class="app-select">
             <option value="">Todas las tareas</option>
           </select>
         </div>
         <div>
           <label class="label" for="metricsRangeFilter">Período</label>
-          <select id="metricsRangeFilter" style="width:100%;height:54px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);border-radius:16px;padding:0 16px;font-size:16px;outline:none;">
+          <select id="metricsRangeFilter" class="app-select">
             <option value="today">Hoy</option>
             <option value="week">Esta semana</option>
             <option value="month">Este mes</option>
@@ -933,6 +981,7 @@
         <div class="metrics-session-list" id="metricsSessionList"></div>
       </div>
       <div class="modal-actions">
+        <button class="ghost-btn" id="exportMetricsPdfBtn" style="width:auto; padding:0 18px;">Descargar PDF</button>
         <button class="ghost-btn" id="closeMetricsBtn" style="width:auto; padding:0 18px;">Cerrar</button>
       </div>
     </div>
@@ -956,6 +1005,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
