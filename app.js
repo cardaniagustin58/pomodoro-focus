@@ -436,6 +436,16 @@ function getSessionProjectName(row) {
   return normalizeProject(row?.projects?.name || row?.project_name);
 }
 
+function getSessionProjectId(row) {
+  return row?.project_id || '';
+}
+
+function getMetricsProjectLabel() {
+  if (!state.metricsFilters.project) return 'Todos';
+  const match = state.projects.find((project) => project.id === state.metricsFilters.project);
+  return match?.name || 'Proyecto seleccionado';
+}
+
 function sameOrAfterDay(date, yyyyMmDd) {
   return new Date(`${yyyyMmDd}T00:00:00`) <= date;
 }
@@ -457,13 +467,12 @@ function filterRows(rows, filters) {
 
     const createdAt = new Date(row.created_at);
     const task = normalizeTask(row.task).toLowerCase();
-    const project = getSessionProjectName(row).toLowerCase();
-    const projectNeedle = (filters.project || '').trim().toLowerCase();
+    const projectId = getSessionProjectId(row);
 
     if (taskNeedle && !task.includes(taskNeedle)) {
       return false;
     }
-    if (projectNeedle && !project.includes(projectNeedle)) {
+    if (filters.project && projectId !== filters.project) {
       return false;
     }
 
@@ -591,12 +600,12 @@ function populateSelectOptions(select, options, placeholder) {
 
   options.forEach((optionValue) => {
     const option = document.createElement('option');
-    option.value = optionValue;
-    option.textContent = optionValue;
+    option.value = optionValue.value;
+    option.textContent = optionValue.label;
     select.appendChild(option);
   });
 
-  if (options.includes(currentValue)) {
+  if (options.some((option) => option.value === currentValue)) {
     select.value = currentValue;
   } else {
     select.value = '';
@@ -605,14 +614,17 @@ function populateSelectOptions(select, options, placeholder) {
 
 function syncMetricsSelects() {
   const baseRows = state.sessionRows.filter((row) => row.mode === 'work');
-  const projectOptions = [...new Set(baseRows.map((row) => getSessionProjectName(row)).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'es'));
+  const projectOptions = state.projects
+    .filter((project) => project.is_active !== false || baseRows.some((row) => getSessionProjectId(row) === project.id))
+    .map((project) => ({ value: project.id, label: project.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'));
   populateSelectOptions(els.metricsProjectFilter, projectOptions, 'Todos los proyectos');
 
   const rowsForTasks = state.metricsFilters.project
-    ? baseRows.filter((row) => getSessionProjectName(row) === state.metricsFilters.project)
+    ? baseRows.filter((row) => getSessionProjectId(row) === state.metricsFilters.project)
     : baseRows;
-  const taskOptions = uniqueSortedLabels(rowsForTasks, 'task', normalizeTask);
+  const taskOptions = uniqueSortedLabels(rowsForTasks, 'task', normalizeTask)
+    .map((task) => ({ value: task, label: task }));
   populateSelectOptions(els.metricsTaskFilter, taskOptions, 'Todas las tareas');
 
   state.metricsFilters.project = els.metricsProjectFilter?.value || '';
@@ -831,7 +843,7 @@ function downloadMetricsPdf() {
 
   let chipX = margin;
   const chipY = 68;
-  chipX += pdfFilterChip(doc, chipX, chipY, 'Proyecto', state.metricsFilters.project || 'Todos');
+  chipX += pdfFilterChip(doc, chipX, chipY, 'Proyecto', getMetricsProjectLabel());
   chipX += pdfFilterChip(doc, chipX, chipY, 'Tarea', state.metricsFilters.task || 'Todas');
   pdfFilterChip(doc, margin, chipY + 12, 'Período', getRangeLabel(state.metricsFilters.range));
   if (state.metricsFilters.range === 'custom') {
