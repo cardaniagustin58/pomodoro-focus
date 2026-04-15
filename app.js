@@ -40,6 +40,7 @@ const els = {
   saveConfigBtn: document.getElementById('saveConfigBtn'),
   authStatus: document.getElementById('authStatus'),
   authMessage: document.getElementById('authMessage'),
+  authName: document.getElementById('authName'),
   authEmail: document.getElementById('authEmail'),
   authPassword: document.getElementById('authPassword'),
   signInBtn: document.getElementById('signInBtn'),
@@ -220,7 +221,7 @@ function isAuthenticated() {
 }
 
 function getUserLabel() {
-  return state.currentUser?.email || 'Sin sesión';
+  return state.currentUser?.user_metadata?.full_name || state.currentUser?.email || 'Sin sesión';
 }
 
 function syncLocalOwnership() {
@@ -245,6 +246,12 @@ function updateAuthUi() {
   }
   if (els.signOutBtn) {
     els.signOutBtn.style.display = loggedIn ? 'block' : 'none';
+  }
+  if (loggedIn && els.authName) {
+    els.authName.value = state.currentUser?.user_metadata?.full_name || '';
+  }
+  if (loggedIn && els.authEmail) {
+    els.authEmail.value = state.currentUser?.email || '';
   }
 }
 
@@ -554,7 +561,7 @@ async function saveSessionToSupabase({ task, minutes, mode, createdAt }) {
           created_at: createdAt,
           device_id: state.deviceId,
           user_id: state.currentUser.id,
-          user_label: state.currentUser.email || 'Usuario',
+          user_label: getUserLabel(),
         }
       ]);
 
@@ -776,6 +783,7 @@ function handleDateReset() {
 async function signUpWithEmail() {
   if (!state.supabaseClient) return;
 
+  const fullName = els.authName.value.trim();
   const email = els.authEmail.value.trim();
   const password = els.authPassword.value;
   if (!email || !password) {
@@ -784,7 +792,15 @@ async function signUpWithEmail() {
     return;
   }
 
-  const { data, error } = await state.supabaseClient.auth.signUp({ email, password });
+  const { data, error } = await state.supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName || email.split('@')[0],
+      },
+    },
+  });
   if (error) {
     setStatus(`No se pudo crear la cuenta: ${error.message}`);
     setAuthMessage(`No se pudo crear la cuenta: ${error.message}`, 'error');
@@ -794,7 +810,7 @@ async function signUpWithEmail() {
   els.authPassword.value = '';
 
   if (!data.session) {
-    const message = 'Cuenta creada. Revisá tu email, confirmá el enlace y después iniciá sesión. Si no llega, esperá un minuto y revisá spam.';
+    const message = 'Solicitud enviada. Si la cuenta es nueva, revisá tu email, confirmá el enlace y después iniciá sesión. Si ya existía, iniciá sesión directamente o recuperá acceso.';
     setStatus(message);
     setAuthMessage(message, 'success');
     return;
