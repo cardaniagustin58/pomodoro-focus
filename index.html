@@ -443,6 +443,64 @@
     .toggle-list { display: grid; gap: 10px; margin-top: 14px; }
     .toggle-item { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; }
     .toggle-item input { transform: scale(1.1); }
+    .projects-panel {
+      border-top: 1px solid var(--border);
+      margin-top: 18px;
+      padding-top: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .projects-panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .projects-panel-head p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .project-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+    .project-list {
+      display: grid;
+      gap: 8px;
+      max-height: 180px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .project-list-item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(255,255,255,.03);
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    .project-list-item strong {
+      display: block;
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .project-list-item span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .project-chip {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
     .auth-grid { display: grid; gap: 12px; margin-top: 16px; }
     .auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .auth-helper { font-size: 13px; color: var(--muted); line-height: 1.5; }
@@ -689,6 +747,7 @@
       .icon-btn { flex: 0 0 46px; }
       .timer-panel { height: 250px; }
       .time-display { font-size: clamp(42px, 16vw, 64px); }
+      .project-form-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 520px) {
@@ -747,7 +806,10 @@
 
             <div class="panel-box">
               <label class="label" for="projectInput">Proyecto / empresa</label>
-              <input id="projectInput" type="text" placeholder="Ej: Cliente X, Marca Y, Proyecto interno" style="margin-bottom:12px;" />
+              <select id="projectInput" class="app-select" style="margin-bottom:8px;">
+                <option value="">Seleccioná un proyecto</option>
+              </select>
+              <div class="auth-helper" id="projectInputHelper">Elegí un proyecto existente. Podés crear nuevos desde Configuración.</div>
               <label class="label" for="taskInput">Tarea actual</label>
               <input id="taskInput" type="text" placeholder="Ej: redactar landing, estudiar ingl&eacute;s, revisar CMS" />
             </div>
@@ -847,6 +909,27 @@
       <div class="toggle-list">
         <label class="toggle-item"><input type="checkbox" id="autoStartNext" checked /> <span>Iniciar autom&aacute;ticamente la siguiente sesi&oacute;n</span></label>
         <label class="toggle-item"><input type="checkbox" id="notificationsEnabled" /> <span>Activar notificaciones del navegador</span></label>
+      </div>
+      <div class="projects-panel">
+        <div class="projects-panel-head">
+          <div>
+            <h4 style="margin:0; font-size:18px;">Proyectos</h4>
+            <p>Creá proyectos reales para luego seleccionarlos en cada bloque.</p>
+          </div>
+        </div>
+        <div class="project-form-grid">
+          <div>
+            <label class="label" for="newProjectName">Nombre del proyecto</label>
+            <input type="text" id="newProjectName" placeholder="Ej: Cliente X" />
+          </div>
+          <div>
+            <label class="label" for="newProjectClient">Cliente / empresa</label>
+            <input type="text" id="newProjectClient" placeholder="Opcional" />
+          </div>
+          <button class="ghost-btn" id="createProjectBtn" style="padding:0 18px;">Crear proyecto</button>
+        </div>
+        <div class="auth-message" id="projectMessage"></div>
+        <div class="project-list" id="projectList"></div>
       </div>
       <div class="modal-actions">
         <button class="ghost-btn" id="saveConfigBtn" style="width:auto; padding:0 18px;">Guardar</button>

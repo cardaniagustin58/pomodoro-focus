@@ -10,6 +10,7 @@ const els = {
   timer: document.getElementById('timer'),
   progressRing: document.getElementById('progressRing'),
   projectInput: document.getElementById('projectInput'),
+  projectInputHelper: document.getElementById('projectInputHelper'),
   taskInput: document.getElementById('taskInput'),
   progressText: document.getElementById('progressText'),
   startBtn: document.getElementById('startBtn'),
@@ -39,6 +40,11 @@ const els = {
   configModal: document.getElementById('configModal'),
   closeConfigBtn: document.getElementById('closeConfigBtn'),
   saveConfigBtn: document.getElementById('saveConfigBtn'),
+  newProjectName: document.getElementById('newProjectName'),
+  newProjectClient: document.getElementById('newProjectClient'),
+  createProjectBtn: document.getElementById('createProjectBtn'),
+  projectMessage: document.getElementById('projectMessage'),
+  projectList: document.getElementById('projectList'),
   metricsModal: document.getElementById('metricsModal'),
   closeMetricsBtn: document.getElementById('closeMetricsBtn'),
   metricsProjectFilter: document.getElementById('metricsProjectFilter'),
@@ -95,6 +101,9 @@ const state = {
   lastActiveDate: getTodayKey(),
   history: [],
   sessionRows: [],
+  projects: [],
+  selectedProjectId: '',
+  selectedProjectName: 'General',
   deviceId: getOrCreateDeviceId(),
   currentUser: null,
   authReady: false,
@@ -191,7 +200,8 @@ function saveState() {
     localCompletedToday: state.localCompletedToday,
     cyclesCompleted: state.cyclesCompleted,
     lastActiveDate: state.lastActiveDate,
-    project: els.projectInput.value,
+    projectId: state.selectedProjectId,
+    projectName: state.selectedProjectName,
     task: els.taskInput.value,
     history: state.history,
     deviceId: state.deviceId,
@@ -225,8 +235,9 @@ function loadState() {
     state.sessionTotal = Number.isFinite(data.sessionTotal) ? data.sessionTotal : 25 * 60;
     state.history = state.lastActiveDate === today && Array.isArray(data.history) ? data.history : [];
     state.deviceId = data.deviceId || state.deviceId;
+    state.selectedProjectId = data.projectId || '';
+    state.selectedProjectName = data.projectName || 'General';
 
-    els.projectInput.value = data.project || 'General';
     els.taskInput.value = data.task || '';
     els.workInput.value = data.settings?.work || 25;
     els.shortBreakInput.value = data.settings?.shortBreak || 5;
@@ -296,12 +307,124 @@ function setAuthMessage(text = '', tone = '') {
   }
 }
 
+function setProjectMessage(text = '', tone = '') {
+  if (!els.projectMessage) return;
+  els.projectMessage.textContent = text;
+  els.projectMessage.className = 'auth-message';
+  if (tone) {
+    els.projectMessage.classList.add(tone);
+  }
+}
+
+function renderProjectSelect() {
+  if (!els.projectInput) return;
+
+  els.projectInput.innerHTML = '';
+
+  if (!state.projects.length) {
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = isAuthenticated() ? 'Creá tu primer proyecto' : 'Iniciá sesión para cargar proyectos';
+    els.projectInput.appendChild(emptyOption);
+    els.projectInput.disabled = true;
+    if (els.projectInputHelper) {
+      els.projectInputHelper.textContent = isAuthenticated()
+        ? 'Todavía no tenés proyectos. Creá uno desde Configuración.'
+        : 'Para usar proyectos reales y guardar horas, primero iniciá sesión.';
+    }
+    return;
+  }
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Seleccioná un proyecto';
+  els.projectInput.appendChild(placeholder);
+
+  state.projects
+    .filter((project) => project.is_active !== false)
+    .forEach((project) => {
+      const option = document.createElement('option');
+      option.value = project.id;
+      option.textContent = project.name;
+      els.projectInput.appendChild(option);
+    });
+
+  const selectedExists = state.projects.some((project) => project.id === state.selectedProjectId);
+  if (!selectedExists) {
+    const fallbackProject = state.projects.find((project) => normalizeProject(project.name) === normalizeProject(state.selectedProjectName));
+    state.selectedProjectId = fallbackProject?.id || state.projects[0]?.id || '';
+  }
+
+  els.projectInput.value = state.selectedProjectId || '';
+  els.projectInput.disabled = false;
+  state.selectedProjectName = getSelectedProject()?.name || state.selectedProjectName;
+  if (els.projectInputHelper) {
+    const selectedProject = getSelectedProject();
+    els.projectInputHelper.textContent = selectedProject
+      ? `Proyecto activo: ${selectedProject.name}${selectedProject.client_name ? ` · ${selectedProject.client_name}` : ''}`
+      : 'Elegí un proyecto existente. Podés crear nuevos desde Configuración.';
+  }
+}
+
+function renderProjectList() {
+  if (!els.projectList) return;
+
+  els.projectList.innerHTML = '';
+  if (!isAuthenticated()) {
+    const empty = document.createElement('div');
+    empty.className = 'metrics-empty';
+    empty.textContent = 'Iniciá sesión para administrar tus proyectos.';
+    els.projectList.appendChild(empty);
+    return;
+  }
+
+  if (!state.projects.length) {
+    const empty = document.createElement('div');
+    empty.className = 'metrics-empty';
+    empty.textContent = 'Todavía no creaste proyectos. Empezá con uno arriba.';
+    els.projectList.appendChild(empty);
+    return;
+  }
+
+  state.projects.forEach((project) => {
+    const item = document.createElement('div');
+    item.className = 'project-list-item';
+    item.innerHTML = `
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span class="project-chip" style="background:${escapeHtml(getProjectColor(project))};"></span>
+        <span style="display:flex; flex-direction:column;">
+          <strong>${escapeHtml(project.name)}</strong>
+          <span>${escapeHtml(project.client_name || 'Sin cliente asociado')}</span>
+        </span>
+      </div>
+      <span>${project.is_active === false ? 'Inactivo' : 'Activo'}</span>
+    `;
+    els.projectList.appendChild(item);
+  });
+}
+
 function normalizeTask(task) {
   return (task || 'Sin tarea definida').trim();
 }
 
 function normalizeProject(projectName) {
   return (projectName || 'General').trim();
+}
+
+function normalizeClientName(clientName) {
+  return (clientName || '').trim();
+}
+
+function getProjectColor(project) {
+  return project?.color || '#7c3aed';
+}
+
+function getSelectedProject() {
+  return state.projects.find((project) => project.id === state.selectedProjectId) || null;
+}
+
+function getSelectedProjectName() {
+  return getSelectedProject()?.name || normalizeProject(state.selectedProjectName);
 }
 
 function sameOrAfterDay(date, yyyyMmDd) {
@@ -1063,17 +1186,97 @@ function handleAuthSession(session) {
   updateAuthUi();
   if (isAuthenticated()) {
     setStatus('Sesión iniciada. Tus métricas se sincronizan con tu cuenta.');
-    void refreshMetrics();
+    void syncUserWorkspace();
   } else {
     state.metrics = getLocalFallbackMetrics();
     state.sessionRows = [];
+    state.projects = [];
+    state.selectedProjectId = '';
+    state.selectedProjectName = 'General';
     renderHistory();
+    renderProjectSelect();
+    renderProjectList();
     renderMetricsDashboard();
     updateDisplay();
   }
 }
 
-async function saveSessionToSupabase({ task, project_name, minutes, mode, createdAt }) {
+async function fetchProjects() {
+  if (!state.supabaseClient || !isAuthenticated()) {
+    state.projects = [];
+    renderProjectSelect();
+    renderProjectList();
+    return;
+  }
+
+  const { data, error } = await state.supabaseClient
+    .from('projects')
+    .select('id, name, client_name, color, is_active, created_at')
+    .eq('user_id', state.currentUser.id)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error cargando proyectos:', error);
+    setProjectMessage('No se pudieron cargar los proyectos.', 'error');
+    return;
+  }
+
+  state.projects = data || [];
+  renderProjectSelect();
+  renderProjectList();
+}
+
+async function createProject() {
+  if (!state.supabaseClient || !isAuthenticated()) {
+    setProjectMessage('Iniciá sesión para crear proyectos.', 'error');
+    return;
+  }
+
+  const rawName = (els.newProjectName?.value || '').trim();
+  const name = normalizeProject(rawName);
+  const clientName = normalizeClientName(els.newProjectClient?.value) || name;
+  if (!rawName) {
+    setProjectMessage('Escribí un nombre de proyecto.', 'error');
+    return;
+  }
+
+  const { data, error } = await state.supabaseClient
+    .from('projects')
+    .insert([{
+      user_id: state.currentUser.id,
+      name,
+      client_name: clientName,
+    }])
+    .select('id, name, client_name, color, is_active, created_at')
+    .single();
+
+  if (error) {
+    console.error('Error creando proyecto:', error);
+    setProjectMessage('No se pudo crear el proyecto. Si ya existe, elegilo desde la lista.', 'error');
+    return;
+  }
+
+  if (data) {
+    state.projects.push(data);
+    state.projects.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    state.selectedProjectId = data.id;
+    state.selectedProjectName = data.name;
+  }
+
+  if (els.newProjectName) els.newProjectName.value = '';
+  if (els.newProjectClient) els.newProjectClient.value = '';
+  setProjectMessage('Proyecto creado correctamente.', 'success');
+  renderProjectSelect();
+  renderProjectList();
+  updateDisplay();
+}
+
+async function syncUserWorkspace() {
+  await fetchProjects();
+  await refreshMetrics();
+}
+
+async function saveSessionToSupabase({ task, project_id, project_name, minutes, mode, createdAt }) {
   if (!state.supabaseClient) return false;
   if (!isAuthenticated()) {
     setStatus('Iniciá sesión para guardar tu trabajo en la nube.');
@@ -1086,6 +1289,7 @@ async function saveSessionToSupabase({ task, project_name, minutes, mode, create
       .insert([
         {
           task,
+          project_id: project_id || null,
           project_name: normalizeProject(project_name),
           minutes,
           mode,
@@ -1114,6 +1318,8 @@ async function saveSessionToSupabase({ task, project_name, minutes, mode, create
 async function refreshMetrics() {
   if (!state.supabaseClient || !isAuthenticated()) {
     state.metrics = getLocalFallbackMetrics();
+    renderProjectSelect();
+    renderProjectList();
     renderHistory();
     renderMetricsDashboard();
     updateDisplay();
@@ -1123,7 +1329,7 @@ async function refreshMetrics() {
   try {
     const { data, error } = await state.supabaseClient
       .from('pomodoro_sessions')
-      .select('task, project_name, minutes, mode, created_at')
+      .select('task, project_id, project_name, minutes, mode, created_at')
       .eq('user_id', state.currentUser.id)
       .order('created_at', { ascending: false });
 
@@ -1199,6 +1405,14 @@ function tick() {
 
 function startTimer() {
   if (state.isRunning) return;
+  if (state.currentMode === 'work' && isAuthenticated() && !state.projects.length) {
+    setStatus('Creá tu primer proyecto desde Configuración antes de iniciar un bloque.');
+    return;
+  }
+  if (state.currentMode === 'work' && isAuthenticated() && state.projects.length && !state.selectedProjectId) {
+    setStatus('Elegí un proyecto antes de iniciar un bloque de trabajo.');
+    return;
+  }
   state.isRunning = true;
   if (!state.sessionTotal || state.timeLeft > state.sessionTotal) {
     state.sessionTotal = getDurations()[state.currentMode];
@@ -1260,7 +1474,8 @@ function finishSession(countAsCompleted) {
     state.cyclesCompleted += 1;
 
     const completedTask = els.taskInput.value.trim() || 'Sin tarea definida';
-    const completedProject = normalizeProject(els.projectInput.value);
+    const completedProject = getSelectedProjectName();
+    const completedProjectId = state.selectedProjectId || null;
     const completedMinutes = Math.round((state.sessionTotal || durations.work) / 60);
     const completedAt = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     const sessionCreatedAt = new Date().toISOString();
@@ -1275,6 +1490,7 @@ function finishSession(countAsCompleted) {
 
     void persistCompletedWorkSession({
       task: completedTask,
+      project_id: completedProjectId,
       project_name: completedProject,
       minutes: completedMinutes,
       mode: 'work',
@@ -1437,7 +1653,12 @@ els.modeBtns.forEach((btn) => {
   });
 });
 
-bind(els.projectInput, 'input', updateDisplay);
+bind(els.projectInput, 'change', () => {
+  state.selectedProjectId = els.projectInput.value;
+  state.selectedProjectName = getSelectedProject()?.name || 'General';
+  setProjectMessage('');
+  updateDisplay();
+});
 bind(els.taskInput, 'input', updateDisplay);
 
 bind(els.notificationsEnabled, 'change', async () => {
@@ -1472,6 +1693,7 @@ bind(els.saveConfigBtn, 'click', () => {
   setStatus('Configuración guardada.');
   closeConfig();
 });
+bind(els.createProjectBtn, 'click', createProject);
 bind(els.signInBtn, 'click', signInWithEmail);
 bind(els.signUpBtn, 'click', signUpWithEmail);
 bind(els.signOutBtn, 'click', signOutCurrentUser);
@@ -1527,6 +1749,8 @@ async function init() {
   loadState();
   handleDateReset();
   updateAuthUi();
+  renderProjectSelect();
+  renderProjectList();
   updateMetricsFilterUi();
   renderMetricsDashboard();
 
