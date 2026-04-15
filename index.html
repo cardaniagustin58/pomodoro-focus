@@ -416,6 +416,14 @@
     .auth-grid { display: grid; gap: 12px; margin-top: 16px; }
     .auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .auth-helper { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .auth-message {
+      min-height: 20px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .auth-message.success { color: #c4f5d1; }
+    .auth-message.error { color: #ffb4b4; }
 
     .focus-overlay {
       position: fixed; inset: 0; z-index: 1200; display: none;
@@ -564,6 +572,7 @@
           <button class="ghost-btn" id="signInBtn">Iniciar sesi&oacute;n</button>
           <button class="ghost-btn" id="signUpBtn">Crear cuenta</button>
         </div>
+        <div class="auth-message" id="authMessage"></div>
         <div class="auth-helper">Si el usuario no existe, puede crearse desde aqu&iacute; mismo. Si activaste confirmaci&oacute;n por email en Supabase, tendr&aacute; que validar su correo antes de entrar.</div>
         <button class="ghost-btn" id="signOutBtn">Cerrar sesi&oacute;n</button>
       </div>

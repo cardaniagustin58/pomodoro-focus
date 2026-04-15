@@ -39,6 +39,7 @@ const els = {
   closeConfigBtn: document.getElementById('closeConfigBtn'),
   saveConfigBtn: document.getElementById('saveConfigBtn'),
   authStatus: document.getElementById('authStatus'),
+  authMessage: document.getElementById('authMessage'),
   authEmail: document.getElementById('authEmail'),
   authPassword: document.getElementById('authPassword'),
   signInBtn: document.getElementById('signInBtn'),
@@ -244,6 +245,15 @@ function updateAuthUi() {
   }
   if (els.signOutBtn) {
     els.signOutBtn.style.display = loggedIn ? 'block' : 'none';
+  }
+}
+
+function setAuthMessage(text = '', tone = '') {
+  if (!els.authMessage) return;
+  els.authMessage.textContent = text;
+  els.authMessage.className = 'auth-message';
+  if (tone) {
+    els.authMessage.classList.add(tone);
   }
 }
 function updateModeButtons() {
@@ -770,16 +780,29 @@ async function signUpWithEmail() {
   const password = els.authPassword.value;
   if (!email || !password) {
     setStatus('Completá email y contraseña para crear la cuenta.');
+    setAuthMessage('Completá email y contraseña para crear la cuenta.', 'error');
     return;
   }
 
-  const { error } = await state.supabaseClient.auth.signUp({ email, password });
+  const { data, error } = await state.supabaseClient.auth.signUp({ email, password });
   if (error) {
     setStatus(`No se pudo crear la cuenta: ${error.message}`);
+    setAuthMessage(`No se pudo crear la cuenta: ${error.message}`, 'error');
     return;
   }
 
-  setStatus('Cuenta creada. Revisá tu correo si Supabase te pide confirmación.');
+  els.authPassword.value = '';
+
+  if (!data.session) {
+    const message = 'Cuenta creada. Revisá tu email, confirmá el enlace y después iniciá sesión. Si no llega, esperá un minuto y revisá spam.';
+    setStatus(message);
+    setAuthMessage(message, 'success');
+    return;
+  }
+
+  const message = 'Cuenta creada y sesión iniciada.';
+  setStatus(message);
+  setAuthMessage(message, 'success');
 }
 
 async function signInWithEmail() {
@@ -789,16 +812,19 @@ async function signInWithEmail() {
   const password = els.authPassword.value;
   if (!email || !password) {
     setStatus('Completá email y contraseña para iniciar sesión.');
+    setAuthMessage('Completá email y contraseña para iniciar sesión.', 'error');
     return;
   }
 
   const { error } = await state.supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     setStatus(`No se pudo iniciar sesión: ${error.message}`);
+    setAuthMessage(`No se pudo iniciar sesión: ${error.message}`, 'error');
     return;
   }
 
   els.authPassword.value = '';
+  setAuthMessage('Sesión iniciada correctamente.', 'success');
   closeConfig();
 }
 
@@ -808,10 +834,12 @@ async function signOutCurrentUser() {
   const { error } = await state.supabaseClient.auth.signOut();
   if (error) {
     setStatus(`No se pudo cerrar la sesión: ${error.message}`);
+    setAuthMessage(`No se pudo cerrar la sesión: ${error.message}`, 'error');
     return;
   }
 
   setStatus('Sesión cerrada.');
+  setAuthMessage('Sesión cerrada.', 'success');
 }
 
 function openInfo() { els.infoModal.classList.add('open'); }
