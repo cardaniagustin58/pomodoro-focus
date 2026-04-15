@@ -320,16 +320,21 @@ function renderProjectSelect() {
   if (!els.projectInput) return;
 
   els.projectInput.innerHTML = '';
+  const activeProjects = state.projects.filter((project) => project.is_active !== false);
 
-  if (!state.projects.length) {
+  if (!activeProjects.length) {
     const emptyOption = document.createElement('option');
     emptyOption.value = '';
-    emptyOption.textContent = isAuthenticated() ? 'Creá tu primer proyecto' : 'Iniciá sesión para cargar proyectos';
+    emptyOption.textContent = isAuthenticated()
+      ? (state.projects.length ? 'Activá o creá un proyecto' : 'Creá tu primer proyecto')
+      : 'Iniciá sesión para cargar proyectos';
     els.projectInput.appendChild(emptyOption);
     els.projectInput.disabled = true;
     if (els.projectInputHelper) {
       els.projectInputHelper.textContent = isAuthenticated()
-        ? 'Todavía no tenés proyectos. Creá uno desde Configuración.'
+        ? (state.projects.length
+          ? 'No tenés proyectos activos. Activá uno desde Configuración o creá uno nuevo.'
+          : 'Todavía no tenés proyectos. Creá uno desde Configuración.')
         : 'Para usar proyectos reales y guardar horas, primero iniciá sesión.';
     }
     return;
@@ -340,19 +345,17 @@ function renderProjectSelect() {
   placeholder.textContent = 'Seleccioná un proyecto';
   els.projectInput.appendChild(placeholder);
 
-  state.projects
-    .filter((project) => project.is_active !== false)
-    .forEach((project) => {
+  activeProjects.forEach((project) => {
       const option = document.createElement('option');
       option.value = project.id;
       option.textContent = project.name;
       els.projectInput.appendChild(option);
-    });
+  });
 
-  const selectedExists = state.projects.some((project) => project.id === state.selectedProjectId);
+  const selectedExists = activeProjects.some((project) => project.id === state.selectedProjectId);
   if (!selectedExists) {
-    const fallbackProject = state.projects.find((project) => normalizeProject(project.name) === normalizeProject(state.selectedProjectName));
-    state.selectedProjectId = fallbackProject?.id || state.projects[0]?.id || '';
+    const fallbackProject = activeProjects.find((project) => normalizeProject(project.name) === normalizeProject(state.selectedProjectName));
+    state.selectedProjectId = fallbackProject?.id || activeProjects[0]?.id || '';
   }
 
   els.projectInput.value = state.selectedProjectId || '';
@@ -397,7 +400,9 @@ function renderProjectList() {
           <span>${escapeHtml(project.client_name || 'Sin cliente asociado')}</span>
         </span>
       </div>
-      <span>${project.is_active === false ? 'Inactivo' : 'Activo'}</span>
+      <button class="ghost-btn" data-project-id="${escapeHtml(project.id)}" data-project-active="${project.is_active === false ? 'false' : 'true'}" style="width:auto; height:40px; padding:0 14px;">
+        ${project.is_active === false ? 'Activar' : 'Inactivar'}
+      </button>
     `;
     els.projectList.appendChild(item);
   });
@@ -427,6 +432,10 @@ function getSelectedProjectName() {
   return getSelectedProject()?.name || normalizeProject(state.selectedProjectName);
 }
 
+function getSessionProjectName(row) {
+  return normalizeProject(row?.projects?.name || row?.project_name);
+}
+
 function sameOrAfterDay(date, yyyyMmDd) {
   return new Date(`${yyyyMmDd}T00:00:00`) <= date;
 }
@@ -448,7 +457,7 @@ function filterRows(rows, filters) {
 
     const createdAt = new Date(row.created_at);
     const task = normalizeTask(row.task).toLowerCase();
-    const project = normalizeProject(row.project_name).toLowerCase();
+    const project = getSessionProjectName(row).toLowerCase();
     const projectNeedle = (filters.project || '').trim().toLowerCase();
 
     if (taskNeedle && !task.includes(taskNeedle)) {
@@ -478,7 +487,7 @@ function computeMetricsSummary(rows) {
   const projectTotals = new Map();
   rows.forEach((row) => {
     const task = normalizeTask(row.task);
-    const project = normalizeProject(row.project_name);
+    const project = getSessionProjectName(row);
     taskTotals.set(task, (taskTotals.get(task) || 0) + (Number(row.minutes) || 0));
     projectTotals.set(project, (projectTotals.get(project) || 0) + (Number(row.minutes) || 0));
   });
@@ -505,7 +514,7 @@ function computeMetricsSummary(rows) {
 function aggregateByProject(rows) {
   const totals = new Map();
   rows.forEach((row) => {
-    const project = normalizeProject(row.project_name);
+    const project = getSessionProjectName(row);
     totals.set(project, (totals.get(project) || 0) + (Number(row.minutes) || 0));
   });
 
@@ -596,11 +605,12 @@ function populateSelectOptions(select, options, placeholder) {
 
 function syncMetricsSelects() {
   const baseRows = state.sessionRows.filter((row) => row.mode === 'work');
-  const projectOptions = uniqueSortedLabels(baseRows, 'project_name', normalizeProject);
+  const projectOptions = [...new Set(baseRows.map((row) => getSessionProjectName(row)).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'es'));
   populateSelectOptions(els.metricsProjectFilter, projectOptions, 'Todos los proyectos');
 
   const rowsForTasks = state.metricsFilters.project
-    ? baseRows.filter((row) => normalizeProject(row.project_name) === state.metricsFilters.project)
+    ? baseRows.filter((row) => getSessionProjectName(row) === state.metricsFilters.project)
     : baseRows;
   const taskOptions = uniqueSortedLabels(rowsForTasks, 'task', normalizeTask);
   populateSelectOptions(els.metricsTaskFilter, taskOptions, 'Todas las tareas');
@@ -763,7 +773,7 @@ function pdfRecentSessions(doc, x, y, w, rows) {
     doc.setTextColor(238, 242, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text(normalizeProject(row.project_name), x + 6, rowY);
+    doc.text(getSessionProjectName(row), x + 6, rowY);
     doc.setTextColor(230, 234, 248);
     doc.setFont('helvetica', 'normal');
     doc.text(normalizeTask(row.task), x + 6, rowY + 5);
@@ -907,7 +917,7 @@ function renderMetricsDashboard() {
       item.className = 'metrics-session-item';
       item.innerHTML = `
         <div>
-          <strong>${escapeHtml(normalizeProject(row.project_name))}</strong>
+          <strong>${escapeHtml(getSessionProjectName(row))}</strong>
           <div class="metrics-session-task">${escapeHtml(normalizeTask(row.task))}</div>
           <span>${new Date(row.created_at).toLocaleDateString('es-AR')} · ${new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
@@ -1109,7 +1119,7 @@ function buildTodayHistory(rows) {
     })
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .map((row) => ({
-      project_name: row.project_name || 'General',
+      project_name: getSessionProjectName(row),
       task: row.task || 'Sin tarea definida',
       minutes: Number(row.minutes) || 0,
       time: new Date(row.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
@@ -1271,6 +1281,41 @@ async function createProject() {
   updateDisplay();
 }
 
+async function toggleProjectActive(projectId, shouldActivate) {
+  if (!state.supabaseClient || !isAuthenticated()) return;
+
+  const { error } = await state.supabaseClient
+    .from('projects')
+    .update({ is_active: shouldActivate })
+    .eq('id', projectId)
+    .eq('user_id', state.currentUser.id);
+
+  if (error) {
+    console.error('Error actualizando proyecto:', error);
+    setProjectMessage('No se pudo actualizar el estado del proyecto.', 'error');
+    return;
+  }
+
+  const project = state.projects.find((item) => item.id === projectId);
+  if (project) {
+    project.is_active = shouldActivate;
+  }
+
+  if (!shouldActivate && state.selectedProjectId === projectId) {
+    state.selectedProjectId = '';
+    state.selectedProjectName = 'General';
+  }
+  if (shouldActivate && !state.selectedProjectId) {
+    state.selectedProjectId = projectId;
+    state.selectedProjectName = project?.name || state.selectedProjectName;
+  }
+
+  setProjectMessage(`Proyecto ${shouldActivate ? 'activado' : 'inactivado'} correctamente.`, 'success');
+  renderProjectSelect();
+  renderProjectList();
+  updateDisplay();
+}
+
 async function syncUserWorkspace() {
   await fetchProjects();
   await refreshMetrics();
@@ -1329,7 +1374,7 @@ async function refreshMetrics() {
   try {
     const { data, error } = await state.supabaseClient
       .from('pomodoro_sessions')
-      .select('task, project_id, project_name, minutes, mode, created_at')
+      .select('task, project_id, project_name, minutes, mode, created_at, projects(name, client_name, color, is_active)')
       .eq('user_id', state.currentUser.id)
       .order('created_at', { ascending: false });
 
@@ -1694,6 +1739,13 @@ bind(els.saveConfigBtn, 'click', () => {
   closeConfig();
 });
 bind(els.createProjectBtn, 'click', createProject);
+bind(els.projectList, 'click', (event) => {
+  const target = event.target.closest('[data-project-id]');
+  if (!target) return;
+  const projectId = target.dataset.projectId;
+  const isCurrentlyActive = target.dataset.projectActive === 'true';
+  void toggleProjectActive(projectId, !isCurrentlyActive);
+});
 bind(els.signInBtn, 'click', signInWithEmail);
 bind(els.signUpBtn, 'click', signUpWithEmail);
 bind(els.signOutBtn, 'click', signOutCurrentUser);
