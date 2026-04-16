@@ -96,6 +96,7 @@ const state = {
   sessionTotal: 25 * 60,
   isRunning: false,
   intervalId: null,
+  timerEndsAt: null,
   localCompletedToday: 0,
   cyclesCompleted: 0,
   lastActiveDate: getTodayKey(),
@@ -197,6 +198,8 @@ function saveState() {
     currentMode: state.currentMode,
     timeLeft: state.timeLeft,
     sessionTotal: state.sessionTotal,
+    timerEndsAt: state.timerEndsAt,
+    isRunning: state.isRunning,
     localCompletedToday: state.localCompletedToday,
     cyclesCompleted: state.cyclesCompleted,
     lastActiveDate: state.lastActiveDate,
@@ -233,6 +236,8 @@ function loadState() {
     state.currentMode = data.currentMode || 'work';
     state.timeLeft = Number.isFinite(data.timeLeft) ? data.timeLeft : 25 * 60;
     state.sessionTotal = Number.isFinite(data.sessionTotal) ? data.sessionTotal : 25 * 60;
+    state.timerEndsAt = Number.isFinite(data.timerEndsAt) ? data.timerEndsAt : null;
+    state.isRunning = Boolean(data.isRunning);
     state.history = state.lastActiveDate === today && Array.isArray(data.history) ? data.history : [];
     state.deviceId = data.deviceId || state.deviceId;
     state.selectedProjectId = data.projectId || '';
@@ -1002,6 +1007,7 @@ function setMode(mode, resetTime = true) {
     const durations = getDurations();
     state.sessionTotal = durations[mode];
     state.timeLeft = durations[mode];
+    state.timerEndsAt = null;
   }
   updateDisplay();
 }
@@ -1451,13 +1457,38 @@ function clearTodayLocalHistory() {
   updateDisplay();
   setStatus('Historial local del día limpiado. Las métricas guardadas no se borraron.');
 }
-function tick() {
-  state.timeLeft -= 1;
-  if (state.timeLeft <= 0) {
+function syncTimerWithClock() {
+  if (!state.isRunning || !state.timerEndsAt) return;
+
+  const now = Date.now();
+  const remainingMs = state.timerEndsAt - now;
+  const nextTimeLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+
+  if (nextTimeLeft !== state.timeLeft) {
+    state.timeLeft = nextTimeLeft;
+    updateDisplay();
+  }
+
+  if (remainingMs <= 0) {
+    state.timeLeft = 0;
+    updateDisplay();
+    finishSession(true);
+  }
+}
+
+function restoreRunningTimer() {
+  if (!state.isRunning || !state.timerEndsAt) return;
+
+  const remainingMs = state.timerEndsAt - Date.now();
+  if (remainingMs <= 0) {
+    state.timeLeft = 0;
     finishSession(true);
     return;
   }
-  updateDisplay();
+
+  state.timeLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+  clearInterval(state.intervalId);
+  state.intervalId = setInterval(syncTimerWithClock, 250);
 }
 
 function startTimer() {
@@ -1474,8 +1505,10 @@ function startTimer() {
   if (!state.sessionTotal || state.timeLeft > state.sessionTotal) {
     state.sessionTotal = getDurations()[state.currentMode];
   }
-  state.intervalId = setInterval(tick, 1000);
+  state.timerEndsAt = Date.now() + (state.timeLeft * 1000);
+  state.intervalId = setInterval(syncTimerWithClock, 250);
   setStatus(state.currentMode === 'work' ? 'En foco. Cero distracciones.' : 'Descansando. Afloja un poco.');
+  syncTimerWithClock();
   updateDisplay();
 }
 
@@ -1483,6 +1516,10 @@ function pauseTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
   state.isRunning = false;
+  if (state.timerEndsAt) {
+    state.timeLeft = Math.max(0, Math.ceil((state.timerEndsAt - Date.now()) / 1000));
+  }
+  state.timerEndsAt = null;
   setStatus('Pausado.');
   updateDisplay();
 }
@@ -1491,6 +1528,7 @@ function resetTimer() {
   clearInterval(state.intervalId);
   state.intervalId = null;
   state.isRunning = false;
+  state.timerEndsAt = null;
   const durations = getDurations();
   state.sessionTotal = durations[state.currentMode];
   state.timeLeft = durations[state.currentMode];
@@ -1521,6 +1559,7 @@ function finishSession(countAsCompleted) {
   clearInterval(state.intervalId);
   state.intervalId = null;
   state.isRunning = false;
+  state.timerEndsAt = null;
   softChime();
   animateEnd();
 
@@ -1804,6 +1843,9 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('beforeunload', saveState);
 
 document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.isRunning) {
+    syncTimerWithClock();
+  }
   if (!document.hidden && state.supabaseReady) {
     void refreshMetrics();
   }
@@ -1824,6 +1866,8 @@ async function init() {
   if (!state.sessionTotal || !Number.isFinite(state.sessionTotal)) {
     state.sessionTotal = getDurations()[state.currentMode];
   }
+
+  restoreRunningTimer();
 
   renderHistory();
   updateDisplay();
